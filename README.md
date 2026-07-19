@@ -60,7 +60,8 @@ only the X11 dev headers are needed as system packages:
 # Build dependencies (RHEL/Rocky; use apt equivalents on Debian/Ubuntu):
 sudo dnf install libX11-devel libXext-devel libXcursor-devel libXi-devel \
     libXfixes-devel libXrandr-devel libXrender-devel libxkbcommon-devel \
-    mesa-libGL-devel mesa-libEGL-devel
+    mesa-libGL-devel mesa-libEGL-devel \
+    wayland-devel wayland-protocols-devel   # for the native Wayland backend
 
 # Build a minimal static SDL3 (video only) into ~/sdl3-prefix:
 curl -LO https://github.com/libsdl-org/SDL/releases/download/release-3.4.12/SDL3-3.4.12.tar.gz
@@ -90,7 +91,14 @@ cmake --build build -j4
 
 On Linux the GUI links SDL3, ImGui, and the C++/GCC runtime statically; the
 resulting binary depends only on core glibc (`libc`, `libm`, `libpthread`,
-`libdl`) and loads X11/GL dynamically at runtime.
+`libdl`) and loads its windowing backend dynamically at runtime.
+
+A single binary supports **X11, Wayland, and KMSDRM** — SDL3 compiles all
+enabled backends in and selects one at runtime (honoring `SDL_VIDEODRIVER`), so
+no per-session build is needed. `libdecor` (client-side Wayland window
+decorations) is optional and not packaged on RHEL/Rocky 8; without it, windows
+on compositors that require client-side decorations (e.g. GNOME Wayland) appear
+borderless — run with `SDL_VIDEODRIVER=x11` there to use XWayland instead.
 
 This produces two executables in `build/`:
 
