@@ -48,6 +48,8 @@
 #include "outfile.h"
 #include "langsel.h"
 
+#include "ui.h"
+
 /* ------------------------------------------------------------------ */
 /* SDL state                                                          */
 /* ------------------------------------------------------------------ */
@@ -66,6 +68,74 @@ static int   ProfCount;
 #ifndef _WIN32
 static void TermRestore( void );   /* forward decl (used by CloseDisplay) */
 #endif
+
+static int g_quit = False;         /* set by a UI/command exit request */
+static int g_ui_ready = False;     /* ImGui UI initialized */
+
+/* ---- console output capture (mirrors stdout into the in-window console) ---- */
+#define CONSOLE_CAP 65536
+static char g_console_buf[CONSOLE_CAP];
+static int  g_console_len = 0;
+
+static void ConsoleAppend( const char *s, int n )
+{
+    if( n <= 0 )
+        return;
+    if( n >= CONSOLE_CAP )         /* keep only the tail of a huge write */
+    {   s += n - (CONSOLE_CAP - 1);
+        n  = CONSOLE_CAP - 1;
+    }
+    if( g_console_len + n > CONSOLE_CAP - 1 )   /* drop oldest to make room */
+    {   int drop = g_console_len + n - (CONSOLE_CAP - 1);
+        if( drop > g_console_len ) drop = g_console_len;
+        memmove( g_console_buf, g_console_buf + drop, g_console_len - drop );
+        g_console_len -= drop;
+    }
+    memcpy( g_console_buf + g_console_len, s, n );
+    g_console_len += n;
+    g_console_buf[g_console_len] = '\0';
+}
+
+static const char *ConsoleTextCB( int *len )
+{
+    if( len ) *len = g_console_len;
+    return g_console_buf;
+}
+
+/* Execute a RasMol command line by feeding it through the core line editor,
+   exactly as if typed.  Used by both the UI and (indirectly) the terminal. */
+static void RunCommandString( const char *cmd )
+{
+    const char *p;
+    for( p = cmd; *p; p++ )
+    {   if( *p == '\n' || *p == '\r' )
+        {   if( ProcessCharacter( '\r' ) )
+            {   if( ExecuteCommand() ) g_quit = True;
+                RefreshScreen();
+                if( !CommandActive )
+                    ResetCommandLine( 0 );
+            }
+        } else
+            ProcessCharacter( (unsigned char)*p );
+    }
+    /* terminate a trailing unterminated command */
+    if( ProcessCharacter( '\r' ) )
+    {   if( ExecuteCommand() ) g_quit = True;
+        RefreshScreen();
+        if( !CommandActive )
+            ResetCommandLine( 0 );
+    }
+}
+
+static void OpenFileCB( const char *path )
+{
+    char cmd[1200];
+    if( !path ) return;
+    snprintf( cmd, sizeof(cmd), "load \"%s\"", path );
+    RunCommandString( cmd );
+}
+
+static void QuitCB( void ) { g_quit = True; }
 
 /* ------------------------------------------------------------------ */
 /* Graphics contract expected by the RasMol core (see graphics.h)     */
@@ -100,15 +170,13 @@ int CreateImage( void )
 }
 
 
+/* Upload the freshly rendered frame buffer to the texture.  The window is
+   composited and presented once per frame in the main loop (molecule texture
+   plus the ImGui overlay), so this does not clear or present. */
 void TransferImage( void )
 {
-    if( !g_renderer || !g_texture )
-        return;
-    SDL_UpdateTexture( g_texture, NULL, FBuffer, XRange * sizeof(Pixel) );
-    SDL_SetRenderDrawColor( g_renderer, 0, 0, 0, 255 );
-    SDL_RenderClear( g_renderer );
-    SDL_RenderTexture( g_renderer, g_texture, NULL, NULL );
-    SDL_RenderPresent( g_renderer );
+    if( g_renderer && g_texture )
+        SDL_UpdateTexture( g_texture, NULL, FBuffer, XRange * sizeof(Pixel) );
 }
 
 
@@ -162,9 +230,18 @@ void ReDrawWindow( void )      { ReDrawFlag |= RFRefresh; }
 void UpdateLanguage( void )    { }
 
 
-/* Console output + exit handlers the core expects from the frontend. */
-void WriteChar( int ch )       { putc( ch, stdout ); }
-void WriteString( char *ptr )  { fputs( ptr, stdout ); }
+/* Console output + exit handlers the core expects from the frontend.
+   Output is echoed to stdout and captured for the in-window console. */
+void WriteChar( int ch )
+{   char c = (char)ch;
+    putc( ch, stdout );
+    ConsoleAppend( &c, 1 );
+}
+void WriteString( char *ptr )
+{   if( !ptr ) return;
+    fputs( ptr, stdout );
+    ConsoleAppend( ptr, (int)strlen( ptr ) );
+}
 void WriteMsg( char *ptr )     { WriteString( ptr ); WriteChar( '\n' ); }
 
 void CloseDisplay( void );     /* forward decl */
@@ -209,6 +286,7 @@ void CloseDisplay( void )
 #ifndef _WIN32
     TermRestore();
 #endif
+    if( g_ui_ready ) { Ui_Shutdown(); g_ui_ready = False; }
     if( g_texture )  SDL_DestroyTexture( g_texture );
     if( g_renderer ) SDL_DestroyRenderer( g_renderer );
     if( g_window )   SDL_DestroyWindow( g_window );
@@ -430,6 +508,26 @@ static void WrapDial( int idx )
 }
 
 
+/* Composite one frame: clear, draw the molecule texture, overlay the UI,
+   and present. */
+static void PresentFrame( void )
+{
+    Ui_BeginFrame();
+    Ui_Build();
+    if( g_quit )
+        return;
+    if( ReDrawFlag )
+        RefreshScreen();          /* redraw molecule if a menu command changed it */
+
+    SDL_SetRenderDrawColor( g_renderer, 0, 0, 0, 255 );
+    SDL_RenderClear( g_renderer );
+    if( g_texture )
+        SDL_RenderTexture( g_renderer, g_texture, NULL, NULL );
+    Ui_Render();
+    SDL_RenderPresent( g_renderer );
+}
+
+
 /* Render a single frame headlessly and save it as a BMP.  Works with the
    SDL "offscreen"/"dummy" video driver, so it needs no window server.
    Returns 0 on success. */
@@ -439,6 +537,15 @@ static int SaveSnapshot( const char *path )
 
     ReDrawFlag |= RFInitial | RFColour;
     RefreshScreen();
+
+    /* Composite molecule + UI into the render target, then read it back. */
+    Ui_BeginFrame();
+    Ui_Build();
+    SDL_SetRenderDrawColor( g_renderer, 0, 0, 0, 255 );
+    SDL_RenderClear( g_renderer );
+    if( g_texture )
+        SDL_RenderTexture( g_renderer, g_texture, NULL, NULL );
+    Ui_Render();
 
     surf = SDL_RenderReadPixels( g_renderer, NULL );
     if( !surf )
@@ -497,6 +604,16 @@ int main( int argc, char *argv[] )
 
     InitSubsystems();
 
+    {   UiCallbacks cb;
+        cb.run_command  = RunCommandString;
+        cb.console_text = ConsoleTextCB;
+        cb.open_file    = OpenFileCB;
+        cb.quit         = QuitCB;
+        g_ui_ready = Ui_Init( g_window, g_renderer, &cb );
+        if( !g_ui_ready )
+            fprintf( stderr, "Warning: UI init failed: %s\n", SDL_GetError() );
+    }
+
     if( filename )
     {   strcpy( DataFileName, filename );
         if( FetchFile( FileFormat, True, (char*)filename ) )
@@ -533,18 +650,17 @@ int main( int argc, char *argv[] )
     running = True;
     while( running )
     {   SDL_Event ev;
-        int need = False;
-        int poll_stdin = False;
-        int got;
 
-#ifndef _WIN32
-        poll_stdin = ( g_console || !g_stdin_eof );
-#endif
-        got = poll_stdin ? SDL_WaitEventTimeout( &ev, 20 )
-                         : SDL_WaitEvent( &ev );
-
-        if( got )
+        /* Wait briefly for input, then always composite a frame so the UI
+           stays responsive (menu hover, cursor blink, dialogs). */
+        if( SDL_WaitEventTimeout( &ev, 16 ) )
         do {
+            Ui_ProcessEvent( &ev );
+
+            /* If ImGui is using the pointer (menu/console), don't let the
+               mouse rotate or zoom the molecule. */
+            int ui_mouse = Ui_WantMouse();
+
             switch( ev.type )
             {
             case SDL_EVENT_QUIT:
@@ -552,9 +668,7 @@ int main( int argc, char *argv[] )
                 break;
 
             case SDL_EVENT_KEY_DOWN:
-                /* Window keystrokes are not command input (that is the
-                   terminal); only Escape closes the app as a convenience. */
-                if( ev.key.key == SDLK_ESCAPE )
+                if( !Ui_WantKeyboard() && ev.key.key == SDLK_ESCAPE )
                     running = False;
                 break;
 
@@ -565,10 +679,10 @@ int main( int argc, char *argv[] )
                 HRange = YRange >> 1;
                 Range  = MinFun( XRange, YRange );
                 ReDrawFlag |= RFReSize | RFColour | RFApply;
-                need = True;
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                if( ui_mouse ) break;
                 if( ev.button.button == SDL_BUTTON_LEFT )
                 {   SDL_Keymod mod = SDL_GetModState();
                     drag = ( mod & SDL_KMOD_SHIFT ) ? DRAG_TRANSLATE : DRAG_ROTATE;
@@ -586,40 +700,38 @@ int main( int argc, char *argv[] )
                     DialValue[DialRX] += 2.0 * ev.motion.yrel / YRange;
                     WrapDial( DialRX );  WrapDial( DialRY );
                     ReDrawFlag |= RFRotateX | RFRotateY;
-                    need = True;
                 } else if( drag == DRAG_TRANSLATE )
                 {   DialValue[DialTX] += 2.0 * ev.motion.xrel / XRange;
                     DialValue[DialTY] -= 2.0 * ev.motion.yrel / YRange;
                     ReDrawFlag |= RFTransX | RFTransY;
-                    need = True;
                 }
                 break;
 
             case SDL_EVENT_MOUSE_WHEEL:
+                if( ui_mouse ) break;
                 DialValue[DialZoom] += 0.1 * ev.wheel.y;
                 if( DialValue[DialZoom] >  1.0 ) DialValue[DialZoom] =  1.0;
                 if( DialValue[DialZoom] < -1.0 ) DialValue[DialZoom] = -1.0;
                 ReDrawFlag |= RFZoom;
-                need = True;
                 break;
 
             case SDL_EVENT_WINDOW_EXPOSED:
                 ReDrawFlag |= RFRefresh;
-                need = True;
                 break;
             }
         } while( SDL_PollEvent( &ev ) );
 
 #ifndef _WIN32
-        {   int quit = False;
-            ServiceConsole( &quit, &need );
+        {   int quit = False, redraw = False;
+            ServiceConsole( &quit, &redraw );
             if( quit )
                 running = False;
         }
 #endif
 
-        if( need && running )
-            RefreshScreen();
+        PresentFrame();
+        if( g_quit )
+            running = False;
     }
 
     CloseDisplay();

@@ -3,7 +3,10 @@ cmake_minimum_required(VERSION 3.16)
 project(RasMol
     VERSION 2.7.6.0
     DESCRIPTION "RasMol molecular graphics -- modernized fork for UltraScan SOMO"
-    LANGUAGES C)
+    LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---------------------------------------------------------------------------
 # Options
@@ -119,8 +122,24 @@ if(RASMOL_BUILD_SDL)
     find_package(SDL3 QUIET CONFIG)
     if(SDL3_FOUND)
         set(RASMOL_HAVE_SDL ON)
-        add_executable(rasmol src/sdl/sdlwin.c)
-        target_link_libraries(rasmol PRIVATE rasmol_core SDL3::SDL3)
+
+        # Dear ImGui (vendored) built as a static library, incl. SDL3 backends.
+        add_library(rasmol_imgui STATIC
+            third_party/imgui/imgui.cpp
+            third_party/imgui/imgui_draw.cpp
+            third_party/imgui/imgui_tables.cpp
+            third_party/imgui/imgui_widgets.cpp
+            third_party/imgui/backends/imgui_impl_sdl3.cpp
+            third_party/imgui/backends/imgui_impl_sdlrenderer3.cpp)
+        target_include_directories(rasmol_imgui PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
+        target_link_libraries(rasmol_imgui PUBLIC SDL3::SDL3)
+
+        add_executable(rasmol
+            src/sdl/sdlwin.c
+            src/sdl/ui_imgui.cpp)
+        target_include_directories(rasmol PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/sdl)
+        target_link_libraries(rasmol PRIVATE rasmol_core rasmol_imgui SDL3::SDL3)
         target_compile_options(rasmol PRIVATE ${RASMOL_LEGACY_FLAGS})
         install(TARGETS rasmol RUNTIME DESTINATION bin)
     else()
