@@ -695,11 +695,16 @@ int main( int argc, char *argv[] )
     }
 
     if( filename )
-    {   strcpy( DataFileName, filename );
-        if( FetchFile( FileFormat, True, (char*)filename ) )
-        {   DefaultRepresentation();
+    {   /* Route through the load command so the format is auto-detected from
+           the extension (PDB, CIF/mmCIF, XYZ, ...), matching File > Open. */
+        if( FileFormat != FormatPDB )
+        {   strcpy( DataFileName, filename );
+            if( FetchFile( FileFormat, True, (char*)filename ) )
+                DefaultRepresentation();
+            else
+                fprintf( stderr, "Error: unable to read '%s'\n", filename );
         } else
-            fprintf( stderr, "Error: unable to read '%s'\n", filename );
+            OpenFileCB( filename );
     }
 
     if( snapshot )

@@ -86,13 +86,17 @@ target_compile_definitions(rasmol_core PUBLIC
     "RASMOLDIR=\"${RASMOL_DATADIR}\"")
 
 if(RASMOL_USE_CBFLIB)
-    # TODO: locate and link CBFlib + its cif.c/cif_ctonum.c/cif_stx.c sources.
+    # TODO: locate and link CBFlib + build cif.c/cif_stx.c/cif_ctonum.c with
+    # USE_CBFLIB for CBF binary format and CBF map support.
     message(FATAL_ERROR "RASMOL_USE_CBFLIB is not wired up yet")
 else()
     target_compile_definitions(rasmol_core PUBLIC NO_CBFLIB)
-    # infile.c calls the cif_* wrapper layer (normally in cif.c, which needs
-    # CBFlib); provide graceful no-op stubs so CIF input fails cleanly.
-    target_sources(rasmol_core PRIVATE src/rasmol_cif_stubs.c)
+    # RasMol's own CIF parser (no external library) reads CIF/mmCIF
+    # coordinate files. It provides the cif_* layer infile.c calls.
+    target_sources(rasmol_core PRIVATE
+        src/cif.c
+        src/cif_stx.c
+        src/cif_ctonum.c)
 endif()
 
 find_library(MATH_LIBRARY m)
