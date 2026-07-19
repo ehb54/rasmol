@@ -427,8 +427,8 @@ int OpenDisplay( void )
     for( i=0; i<10; i++ )
         DialValue[i] = 0.0;
     
-    XRange = x;   WRange = XRange>>1;
-    YRange = y;   HRange = YRange>>1;
+    XRange = DefaultWide;   WRange = XRange>>1;
+    YRange = DefaultHigh;   HRange = YRange>>1;
     Range = MinFun(XRange,YRange);
     ZRange = 20000;
     
@@ -482,8 +482,6 @@ void RefreshScreen( void )
 	      	record_frame[1] = 0;
 	      }
 	    }
-    }
-
     }
 }
 
@@ -659,10 +657,10 @@ int main( int argc, char *argv[] )
     register char ch;
 
 
-    static char VersionStr[100];
+    static char VersionStr[256];
 
-    sprintf (VersionStr,"%s\nVersion %s %s\n%s\n\n", 
-             MAIN_COPYRIGHT, VERSION, 
+    snprintf (VersionStr,sizeof(VersionStr),"%s\nVersion %s %s\n%s\n\n",
+             MAIN_COPYRIGHT, VERSION,
              VER_DATE, VER_COPYRIGHT);
 
     InitDefaultValues();
