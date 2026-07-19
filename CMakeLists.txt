@@ -135,12 +135,25 @@ if(RASMOL_BUILD_SDL)
             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
         target_link_libraries(rasmol_imgui PUBLIC SDL3::SDL3)
 
+        # Capture the git revision for the About box (best-effort).
+        execute_process(
+            COMMAND git rev-parse --short HEAD
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            OUTPUT_VARIABLE RASMOL_GIT_REV
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+        if(NOT RASMOL_GIT_REV)
+            set(RASMOL_GIT_REV "unknown")
+        endif()
+
         add_executable(rasmol
             src/sdl/sdlwin.c
             src/sdl/ui_imgui.cpp)
         target_include_directories(rasmol PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/sdl)
         target_link_libraries(rasmol PRIVATE rasmol_core rasmol_imgui SDL3::SDL3)
         target_compile_options(rasmol PRIVATE ${RASMOL_LEGACY_FLAGS})
+        target_compile_definitions(rasmol PRIVATE
+            "RASMOL_GIT_REV=\"${RASMOL_GIT_REV}\"")
         install(TARGETS rasmol RUNTIME DESTINATION bin)
     else()
         message(WARNING

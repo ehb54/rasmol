@@ -137,6 +137,34 @@ static void OpenFileCB( const char *path )
 
 static void QuitCB( void ) { g_quit = True; }
 
+#ifndef RASMOL_GIT_REV
+#define RASMOL_GIT_REV "unknown"
+#endif
+#ifndef RASMOL_FORK_NAME
+#define RASMOL_FORK_NAME "UltraScan SOMO fork"
+#endif
+
+static const char *AboutText( void )
+{
+    static char about[600];
+    if( !about[0] )
+        snprintf( about, sizeof(about),
+            "RasMol -- %s\n"
+            "SDL3 + ImGui frontend\n"
+            "\n"
+            "Based on RasMol %s\n"
+            "%s\n"
+            "%s\n"
+            "\n"
+            "Fork revision: %s\n"
+            "Built: %s\n"
+            "\n"
+            "github.com/ehb54/rasmol",
+            RASMOL_FORK_NAME, VERSION, MAIN_COPYRIGHT, VER_COPYRIGHT,
+            RASMOL_GIT_REV, __DATE__ );
+    return about;
+}
+
 /* ------------------------------------------------------------------ */
 /* Graphics contract expected by the RasMol core (see graphics.h)     */
 /* ------------------------------------------------------------------ */
@@ -651,6 +679,7 @@ int main( int argc, char *argv[] )
         cb.console_text = ConsoleTextCB;
         cb.open_file    = OpenFileCB;
         cb.quit         = QuitCB;
+        cb.about        = AboutText();
         g_ui_ready = Ui_Init( g_window, g_renderer, &cb );
         if( !g_ui_ready )
             fprintf( stderr, "Warning: UI init failed: %s\n", SDL_GetError() );

@@ -18,6 +18,7 @@ static UiCallbacks   g_cb;
 static SDL_Window   *g_window   = nullptr;
 static SDL_Renderer *g_renderer = nullptr;
 static bool          g_show_console = true;
+static bool          g_open_about   = false;
 static int           g_menubar_h    = 0;
 static const float   CONSOLE_HEIGHT = 220.0f;   /* docked bottom panel */
 
@@ -195,10 +196,35 @@ static void BuildMenuBar( void )
     if( ImGui::BeginMenu( "Help" ) )
     {   CmdItem( "Information",   "show information" );
         CmdItem( "Commands",      "help" );
+        ImGui::Separator();
+        if( ImGui::MenuItem( "About RasMol..." ) )
+            g_open_about = true;
         ImGui::EndMenu();
     }
 
     ImGui::EndMainMenuBar();
+}
+
+static void BuildAbout( void )
+{
+    if( g_open_about )
+    {   ImGui::OpenPopup( "About RasMol" );
+        g_open_about = false;
+    }
+
+    /* Centre the modal over the window. */
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos( center, ImGuiCond_Appearing, ImVec2( 0.5f, 0.5f ) );
+
+    if( ImGui::BeginPopupModal( "About RasMol", NULL,
+                                ImGuiWindowFlags_AlwaysAutoResize ) )
+    {   const char *txt = g_cb.about ? g_cb.about : "RasMol";
+        ImGui::TextUnformatted( txt );
+        ImGui::Separator();
+        if( ImGui::Button( "OK", ImVec2( 120, 0 ) ) )
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 }
 
 static void BuildConsole( void )
@@ -254,6 +280,7 @@ extern "C" void Ui_Build( void )
 {
     BuildMenuBar();
     BuildConsole();
+    BuildAbout();
 }
 
 extern "C" void Ui_Render( void )

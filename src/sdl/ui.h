@@ -25,6 +25,8 @@ typedef struct UiCallbacks {
     void        (*open_file)( const char *path );
     /* Request application exit. */
     void        (*quit)( void );
+    /* Multi-line version/build text shown in Help > About (may be NULL). */
+    const char  *about;
 } UiCallbacks;
 
 /* Lifecycle. Returns 1 on success. */
