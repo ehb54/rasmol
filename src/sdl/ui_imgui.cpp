@@ -227,9 +227,7 @@ static void BuildMenuBar( void )
     }
 
     if( ImGui::BeginMenu( "Export" ) )
-    {   ExportItem( "BMP...",          "bmp" );
-        ExportItem( "GIF...",          "gif" );
-        ExportItem( "IRIS RGB...",     "iris" );
+    {   ExportItem( "IRIS RGB...",     "iris" );
         ExportItem( "PPM...",          "ppm" );
         ExportItem( "Sun Raster...",   "sun" );
         ExportItem( "PostScript...",   "epsf" );
