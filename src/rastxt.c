@@ -333,7 +333,7 @@ int CreateImage( void )
     if( FBuffer ) _ffree(FBuffer);
     size = (Long)XRange*YRange*sizeof(Pixel);
     FBuffer = (Pixel*)_fmalloc( size+32 );
-    return( (int)FBuffer );
+    return( FBuffer != (Pixel*)NULL );
 }
 
 
