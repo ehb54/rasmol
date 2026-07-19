@@ -1,0 +1,8 @@
+# CMake build trees
+/build/
+/build-*/
+# Editor / OS cruft
+*.o
+*.a
+*~
+.DS_Store
