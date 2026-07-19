@@ -48,6 +48,9 @@ void Ui_Render( void );
 /* Pixel height reserved by the top menu bar (0 until the first frame). */
 int  Ui_MenuBarHeight( void );
 
+/* Pixel height reserved by the docked bottom console (0 when hidden). */
+int  Ui_ConsoleHeight( void );
+
 /* Toggle / query the console panel visibility (also a menu item). */
 void Ui_ToggleConsole( void );
 

@@ -19,6 +19,7 @@ static SDL_Window   *g_window   = nullptr;
 static SDL_Renderer *g_renderer = nullptr;
 static bool          g_show_console = true;
 static int           g_menubar_h    = 0;
+static const float   CONSOLE_HEIGHT = 220.0f;   /* docked bottom panel */
 
 /* ---- helpers ---- */
 
@@ -100,6 +101,11 @@ extern "C" int Ui_WantKeyboard( void )
 extern "C" int Ui_MenuBarHeight( void )
 {
     return g_menubar_h;
+}
+
+extern "C" int Ui_ConsoleHeight( void )
+{
+    return g_show_console ? (int)CONSOLE_HEIGHT : 0;
 }
 
 extern "C" void Ui_ToggleConsole( void )
@@ -200,10 +206,14 @@ static void BuildConsole( void )
     if( !g_show_console )
         return;
 
-    ImGui::SetNextWindowSize( ImVec2( 600, 280 ), ImGuiCond_FirstUseEver );
-    ImGui::SetNextWindowPos( ImVec2( 20, (float)g_menubar_h + 20 ),
-                             ImGuiCond_FirstUseEver );
-    if( ImGui::Begin( "RasMol Console", &g_show_console ) )
+    /* Dock the console across the bottom of the window so it never overlaps
+       the molecule view (which the frontend lays out above it). */
+    ImVec2 disp = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos(  ImVec2( 0.0f, disp.y - CONSOLE_HEIGHT ) );
+    ImGui::SetNextWindowSize( ImVec2( disp.x, CONSOLE_HEIGHT ) );
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoCollapse;
+    if( ImGui::Begin( "RasMol Console", &g_show_console, flags ) )
     {
         const float footer = ImGui::GetStyle().ItemSpacing.y +
                              ImGui::GetFrameHeightWithSpacing();

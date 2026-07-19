@@ -498,32 +498,73 @@ static void InitSubsystems( void )
 }
 
 
-/* Drag mode selected on mouse-button-down. */
-enum { DRAG_NONE, DRAG_ROTATE, DRAG_TRANSLATE };
+/* Pixel offset of the molecule canvas within the window: the menu bar sits
+   above it and the console is docked below.  Updated each frame. */
+static int g_canvas_top = 0;
+static int g_canvas_drag = False;   /* a rotate/translate/pick gesture is live */
 
-static void WrapDial( int idx )
+/* Build RasMol's mouse status word (MM*) from the current button/modifier
+   state, optionally forcing a specific button (for down/up events where SDL's
+   queried state may not yet/any longer include it). */
+static int MouseStat( int force_button )
 {
-    if( DialValue[idx] >  1.0 ) DialValue[idx] -= 2.0;
-    if( DialValue[idx] < -1.0 ) DialValue[idx] += 2.0;
+    int stat = 0;
+    SDL_MouseButtonFlags b = SDL_GetMouseState( NULL, NULL );
+    SDL_Keymod m = SDL_GetModState();
+
+    if( b & SDL_BUTTON_LMASK ) stat |= MMLft;
+    if( b & SDL_BUTTON_MMASK ) stat |= MMMid;
+    if( b & SDL_BUTTON_RMASK ) stat |= MMRgt;
+    if( force_button == SDL_BUTTON_LEFT )   stat |= MMLft;
+    if( force_button == SDL_BUTTON_MIDDLE ) stat |= MMMid;
+    if( force_button == SDL_BUTTON_RIGHT )  stat |= MMRgt;
+    if( m & SDL_KMOD_SHIFT ) stat |= MMSft;
+    if( m & SDL_KMOD_CTRL )  stat |= MMCtl;
+    return stat;
 }
 
 
-/* Composite one frame: clear, draw the molecule texture, overlay the UI,
-   and present. */
+/* Lay out and draw one frame (no present).  The menu bar occupies the top of
+   the window and the console is docked at the bottom; the molecule canvas
+   fills the space between.  Assumes Ui_BeginFrame()/Ui_Build() already ran. */
+static void ComposeFrame( void )
+{
+    int win_w = XRange, win_h = YRange;
+    int top, canvas_h;
+
+    SDL_GetRenderOutputSize( g_renderer, &win_w, &win_h );
+    top      = Ui_MenuBarHeight();
+    canvas_h = win_h - top - Ui_ConsoleHeight();
+    if( canvas_h < 16 ) canvas_h = 16;
+    g_canvas_top = top;
+
+    /* Resize the molecule canvas to the available region. */
+    if( XRange != win_w || YRange != canvas_h )
+    {   XRange = win_w;   YRange = canvas_h;
+        WRange = XRange >> 1;
+        HRange = YRange >> 1;
+        Range  = MinFun( XRange, YRange );
+        ReDrawFlag |= RFReSize | RFColour | RFApply;
+    }
+    if( ReDrawFlag )
+        RefreshScreen();
+
+    SDL_SetRenderDrawColor( g_renderer, 0, 0, 0, 255 );
+    SDL_RenderClear( g_renderer );
+    if( g_texture )
+    {   SDL_FRect dst = { 0.0f, (float)top, (float)XRange, (float)YRange };
+        SDL_RenderTexture( g_renderer, g_texture, NULL, &dst );
+    }
+    Ui_Render();
+}
+
 static void PresentFrame( void )
 {
     Ui_BeginFrame();
     Ui_Build();
     if( g_quit )
         return;
-    if( ReDrawFlag )
-        RefreshScreen();          /* redraw molecule if a menu command changed it */
-
-    SDL_SetRenderDrawColor( g_renderer, 0, 0, 0, 255 );
-    SDL_RenderClear( g_renderer );
-    if( g_texture )
-        SDL_RenderTexture( g_renderer, g_texture, NULL, NULL );
-    Ui_Render();
+    ComposeFrame();
     SDL_RenderPresent( g_renderer );
 }
 
@@ -536,16 +577,11 @@ static int SaveSnapshot( const char *path )
     SDL_Surface *surf;
 
     ReDrawFlag |= RFInitial | RFColour;
-    RefreshScreen();
 
     /* Composite molecule + UI into the render target, then read it back. */
     Ui_BeginFrame();
     Ui_Build();
-    SDL_SetRenderDrawColor( g_renderer, 0, 0, 0, 255 );
-    SDL_RenderClear( g_renderer );
-    if( g_texture )
-        SDL_RenderTexture( g_renderer, g_texture, NULL, NULL );
-    Ui_Render();
+    ComposeFrame();
 
     surf = SDL_RenderReadPixels( g_renderer, NULL );
     if( !surf )
@@ -566,7 +602,6 @@ int main( int argc, char *argv[] )
 {
     const char *filename = NULL;
     const char *snapshot = NULL;
-    int drag = DRAG_NONE;
     int i, running, done;
 
     setvbuf( stdout, NULL, _IONBF, 0 );   /* prompt/echo appears immediately */
@@ -592,6 +627,10 @@ int main( int argc, char *argv[] )
         return 1;
     }
 
+    /* Roomy default so the menu bar, molecule view and console all fit. */
+    if( !InitWidth )  InitWidth  = 800;
+    if( !InitHeight ) InitHeight = 720;
+
     OpenDisplay();
 
     if( !SDL_CreateWindowAndRenderer( "RasMol", XRange, YRange,
@@ -603,6 +642,9 @@ int main( int argc, char *argv[] )
     CreateImage();
 
     InitSubsystems();
+
+    /* Clicking an atom identifies it in the console, as in classic RasMol. */
+    SetPickMode( PickIdent );
 
     {   UiCallbacks cb;
         cb.run_command  = RunCommandString;
@@ -681,29 +723,31 @@ int main( int argc, char *argv[] )
                 ReDrawFlag |= RFReSize | RFColour | RFApply;
                 break;
 
+            /* Mouse rotate/translate/pick go through RasMol's own mouse
+               interface, so drags rotate and clicks pick atoms exactly as in
+               classic RasMol.  Coordinates are relative to the molecule canvas
+               (below the menu bar). */
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if( ui_mouse ) break;
-                if( ev.button.button == SDL_BUTTON_LEFT )
-                {   SDL_Keymod mod = SDL_GetModState();
-                    drag = ( mod & SDL_KMOD_SHIFT ) ? DRAG_TRANSLATE : DRAG_ROTATE;
-                } else if( ev.button.button == SDL_BUTTON_RIGHT )
-                    drag = DRAG_TRANSLATE;
-                break;
-
-            case SDL_EVENT_MOUSE_BUTTON_UP:
-                drag = DRAG_NONE;
+                g_canvas_drag = True;
+                ProcessMouseDown( (int)ev.button.x,
+                                  (int)ev.button.y - g_canvas_top,
+                                  MouseStat( ev.button.button ) );
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
-                if( drag == DRAG_ROTATE )
-                {   DialValue[DialRY] += 2.0 * ev.motion.xrel / XRange;
-                    DialValue[DialRX] += 2.0 * ev.motion.yrel / YRange;
-                    WrapDial( DialRX );  WrapDial( DialRY );
-                    ReDrawFlag |= RFRotateX | RFRotateY;
-                } else if( drag == DRAG_TRANSLATE )
-                {   DialValue[DialTX] += 2.0 * ev.motion.xrel / XRange;
-                    DialValue[DialTY] -= 2.0 * ev.motion.yrel / YRange;
-                    ReDrawFlag |= RFTransX | RFTransY;
+                if( g_canvas_drag )
+                    ProcessMouseMove( (int)ev.motion.x,
+                                      (int)ev.motion.y - g_canvas_top,
+                                      MouseStat( 0 ) );
+                break;
+
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                if( g_canvas_drag )
+                {   ProcessMouseUp( (int)ev.button.x,
+                                    (int)ev.button.y - g_canvas_top,
+                                    MouseStat( ev.button.button ) );
+                    g_canvas_drag = False;
                 }
                 break;
 
