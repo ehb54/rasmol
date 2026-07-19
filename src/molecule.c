@@ -3318,6 +3318,8 @@ void DestroyDatabase( void )
     register void __far *temp;
     register Group __far *gptr;
 
+    AnyBondColours = False;
+
     if( Database )
     {   ReclaimHBonds( Database->slist );
 	ReclaimHBonds( Database->hlist );

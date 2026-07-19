@@ -293,6 +293,13 @@ int DrawField,MaxVectorField;
 int ZoneBoth;
 int ModelInclude;
 
+/* Bond SelectFlag is derived entirely from the endpoint atoms' SelectFlag, so
+ * it is recomputed on demand by the only commands that read it rather than on
+ * every selection.  AnyBondColours is conservative - once true it stays true
+ * until the database is replaced.
+ */
+int AnyBondColours;
+
 int ScaleCount;
 ShadeRef ScaleRef[LastShade];
 int AltlColours[AltlDepth];
@@ -348,6 +355,8 @@ extern int DrawField,MaxVectorField;
 extern int ZoneBoth;
 extern int ModelInclude;
 
+extern int AnyBondColours;
+
 extern int ScaleCount;
 extern ShadeRef ScaleRef[LastShade];
 extern int AltlColours[AltlDepth];
@@ -383,6 +392,7 @@ void DisableWireframe( void );
 void DisableBackbone( void );
 
 void DisplaySelectCount( void );
+void ValidateBondSelect( void );
 void SelectZoneExpr( Expr* );
 void RestrictZoneExpr( Expr* );
 void RestrictZone( int );

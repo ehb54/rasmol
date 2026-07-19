@@ -1736,8 +1736,6 @@ void RestrictZone( int mask )
 
 void SelectZoneExpr( Expr *expr )
 {
-    register Bond __far *bptr;
-    register SurfBond __far *sbptr;
     register AtomSet __far *pset;
 	register int i;
 
@@ -1770,8 +1768,23 @@ void SelectZoneExpr( Expr *expr )
                     SelectCount++;
                 } else QAtom->flag &= ~SelectFlag;
     }
-    
+
     DisplaySelectCount();
+
+    /* Walking the bond list here costs O(bonds) per select, which dominates
+     * scripts that select one atom at a time (SOMO bead models issue one
+     * select per bead).  ValidateBondSelect derives the bond flags on demand.
+     */
+}
+
+
+void ValidateBondSelect( void )
+{
+    register Bond __far *bptr;
+    register SurfBond __far *sbptr;
+
+    if( !Database )
+        return;
 
     if( ZoneBoth )
     {   ForEachBond
@@ -1782,12 +1795,12 @@ void SelectZoneExpr( Expr *expr )
            if( (sbptr->srcatom->flag&sbptr->dstatom->flag) & SelectFlag )
            {   sbptr->flag |= SelectFlag;
            } else sbptr->flag &= ~SelectFlag;
-    } else 
+    } else
     {
         ForEachBond
            if( (bptr->srcatom->flag|bptr->dstatom->flag) & SelectFlag )
            {   bptr->flag |= SelectFlag;
-           } else bptr->flag &= ~SelectFlag;	
+           } else bptr->flag &= ~SelectFlag;
         ForEachSurfBond
            if( (sbptr->srcatom->flag|sbptr->dstatom->flag) & SelectFlag )
            {   sbptr->flag |= SelectFlag;
@@ -2317,6 +2330,14 @@ void ColourBondNone( void )
 {
     register Bond __far *bptr;
 
+    /* Nothing to uncolour unless some bond has been given a colour.  Every
+     * "colour <colour>" runs this, so the early out keeps atom colouring off
+     * the bond list entirely on models that never colour bonds.
+     */
+    if( !AnyBondColours )
+        return;
+
+    ValidateBondSelect();
     if( Database )
         ForEachBond
             if( (bptr->flag&SelectFlag) && bptr->col )
@@ -2331,6 +2352,8 @@ void ColourBondAttrib( int r, int g, int b )
     register Bond __far *bptr;
     register int shade,col;
 
+    ValidateBondSelect();
+    AnyBondColours = True;
     if( Database )
     {   ForEachBond
             if( (bptr->flag&SelectFlag) && bptr->col )
