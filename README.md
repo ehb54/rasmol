@@ -20,15 +20,30 @@ Based on RasMol 2.7.6 by Roger Sayle and Herbert J. Bernstein. See
   path for macOS, Linux, and Windows. X11 is no longer required.
 - **CMake build system** replacing the legacy Imake/hand-Makefiles.
 - **Pull-down menus and an in-window console** (Dear ImGui): File, Display,
-  Colours, Options, Settings, View, Help. Menu items and the console input run
-  real RasMol commands.
+  Colours, Options, Settings, Export, View, Help. Menu items and the console
+  input run real RasMol commands, and the menus check-mark live state — the
+  Display representations are mutually exclusive, as in classic RasMol.
+- **Export menu** covering 13 output formats (PPM, PostScript, Vector PS, PICT,
+  IRIS RGB, Sun Raster, POVRay 3, VRML, Kinemage, Raster3D, Molscript,
+  Ramachandran, and RasMol script).
 - **Atom picking** — click an atom to print its identity in the console (via
   RasMol's native mouse interface, so rotation/translation/zoom behave as in
   classic RasMol).
+- **A fully featured console** — command history (up/down, persisted across
+  sessions in `~/.rasmol_history`), Tab completion including context-aware
+  colour/set/select arguments, selectable and copyable output, `Ctrl+L` to
+  clear, `Ctrl-D` to exit.
 - **A classic terminal `RasMol>` prompt** still works when launched from a shell,
   in addition to the in-window console.
+- **SOMO bead-model support** — `rasmol -script model.spt` renders the bead
+  models written by UltraScan SOMO, alongside ordinary PDB input.
 - **CIF / mmCIF input** via RasMol's own built-in parser (no external library).
 - **Help → About** reporting the fork version and exact build revision.
+- **Large bead models load ~15× faster.** RasMol rebuilt every bond's selection
+  state after each selection command; SOMO emits one selection per bead, and the
+  XYZ reader distance-bonds packed beads heavily, so a 20,640-bead model spent
+  most of two and a half minutes maintaining flags for bonds that are never
+  drawn. That state is now derived on demand (158s → 10s).
 - Numerous correctness fixes surfaced by modern toolchains (64-bit pointer
   truncation, uninitialized message tables, a multi-molecule load crash, etc.).
 
@@ -147,9 +162,15 @@ SDL3 sources are cached under `build-deps/` (git-ignored); delete a
 ### GUI
 
 ```sh
-./build/rasmol data/1crn.pdb        # PDB
-./build/rasmol data/4ins.CIF        # CIF/mmCIF (auto-detected by extension)
+./build/rasmol data/1crn.pdb            # PDB
+./build/rasmol data/4ins.CIF            # CIF/mmCIF (auto-detected by extension)
+./build/rasmol -script model.spt        # run a RasMol script at startup
+./build/rasmol -snapshot shot.bmp ...   # render, write a BMP, and exit
 ```
+
+`-script` is how **UltraScan SOMO** launches bead models: it writes a `.bms`
+(XYZ coordinates) plus a `.spt` script that sizes and colours each bead, and
+invokes `rasmol -script <model>.spt`.
 
 - **Mouse:** left-drag rotates, Shift+left-drag or right-drag translates, the
   wheel zooms.
@@ -194,11 +215,23 @@ claude/               Developer research notes
 
 ## Status & known limitations
 
-- **macOS** and **Linux** (Rocky Linux 8.10, GCC 13, X11) are validated — the
-  GUI builds and renders identically on both, and the binaries are statically
-  linked for distribution. **Windows** cross-compiles to a self-contained static
+- **macOS** and **Linux** (Rocky Linux 8.10 / GCC 13 and Ubuntu 16.04, X11 and
+  VNC) are validated — the GUI builds and renders identically on both, driven
+  from SOMO for PDBs and bead models, and the binaries are statically linked for
+  distribution. **Windows** cross-compiles to a self-contained static
   `rasmol.exe` with MinGW-w64 (provided under `binaries/`) but has **not yet
   been validated at runtime on real Windows**.
+- Displays that advertise GLX but cannot create an OpenGL context — notably some
+  older VNC servers — are handled by falling back to SDL's software renderer,
+  with a note on stderr. RasMol rasterizes on the CPU, so nothing is lost.
+- **`-nodisplay` still requires a video device on Linux**; use the `rasmol-text`
+  build for genuinely headless scripting.
+- **Display → Molecular Surface draws a dot surface.** RasMol's solid (`surface`)
+  renderer is broken upstream — it renders nothing here and crashes 2.7.5.2 — so
+  the menu issues `dots` instead.
+- **BMP and GIF export are not offered.** RasMol's writers for those two formats
+  are 8-bit only and this is a 32-bit colour build; the other 13 export formats
+  work (PPM is the raster one).
 - **CBF binary format** (imgCIF) and **CBF electron-density maps** are not
   supported — those require CBFlib (`RASMOL_USE_CBFLIB`, not yet wired). Ordinary
   CIF/mmCIF **coordinate** files work via the built-in parser.
@@ -206,7 +239,6 @@ claude/               Developer research notes
   unfinished** in upstream RasMol and does not produce correct results; it is not
   part of the supported feature set. See
   [`claude/align-research.md`](claude/align-research.md) for a full analysis.
-- Some menu **Options** toggles do not yet reflect live state (checkmarks).
 
 ---
 
