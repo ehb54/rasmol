@@ -87,6 +87,9 @@ if(RASMOL_USE_CBFLIB)
     message(FATAL_ERROR "RASMOL_USE_CBFLIB is not wired up yet")
 else()
     target_compile_definitions(rasmol_core PUBLIC NO_CBFLIB)
+    # infile.c calls the cif_* wrapper layer (normally in cif.c, which needs
+    # CBFlib); provide graceful no-op stubs so CIF input fails cleanly.
+    target_sources(rasmol_core PRIVATE src/rasmol_cif_stubs.c)
 endif()
 
 find_library(MATH_LIBRARY m)
@@ -107,11 +110,28 @@ if(RASMOL_BUILD_TEXT)
 endif()
 
 # ---------------------------------------------------------------------------
-# GUI frontend (SDL3) -- added in the next step
+# SDL3 GUI frontend -- the portable replacement for the X11 platform layer
 # ---------------------------------------------------------------------------
-# add_subdirectory(src/sdl)   # provides the `rasmol` target
+option(RASMOL_BUILD_SDL "Build the SDL3 GUI frontend (rasmol)" ON)
+
+set(RASMOL_HAVE_SDL OFF)
+if(RASMOL_BUILD_SDL)
+    find_package(SDL3 QUIET CONFIG)
+    if(SDL3_FOUND)
+        set(RASMOL_HAVE_SDL ON)
+        add_executable(rasmol src/sdl/sdlwin.c)
+        target_link_libraries(rasmol PRIVATE rasmol_core SDL3::SDL3)
+        target_compile_options(rasmol PRIVATE ${RASMOL_LEGACY_FLAGS})
+        install(TARGETS rasmol RUNTIME DESTINATION bin)
+    else()
+        message(WARNING
+            "SDL3 not found -- skipping the GUI frontend. "
+            "Install SDL3 (e.g. `brew install sdl3`) and reconfigure.")
+    endif()
+endif()
 
 message(STATUS "RasMol ${PROJECT_VERSION}")
 message(STATUS "  CBFlib (CIF/CBF I/O) : ${RASMOL_USE_CBFLIB}")
 message(STATUS "  text frontend        : ${RASMOL_BUILD_TEXT}")
+message(STATUS "  SDL3 GUI frontend    : ${RASMOL_HAVE_SDL}")
 message(STATUS "  data dir (RASMOLDIR)  : ${RASMOL_DATADIR}")
