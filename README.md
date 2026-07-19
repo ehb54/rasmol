@@ -50,18 +50,47 @@ Install on macOS (Homebrew):
 brew install cmake sdl3
 ```
 
-On Debian/Ubuntu, install `cmake`, a compiler, and SDL3 (from your package
-manager or built from source). On Windows, use the SDL3 SDK with MSVC.
+On Windows, use the SDL3 SDK with MSVC.
+
+**Linux:** SDL3 is new and often not yet packaged (e.g. it is absent from
+EPEL 8 / Rocky 8). Build a lean static SDL3 from source into a user prefix —
+only the X11 dev headers are needed as system packages:
+
+```sh
+# Build dependencies (RHEL/Rocky; use apt equivalents on Debian/Ubuntu):
+sudo dnf install libX11-devel libXext-devel libXcursor-devel libXi-devel \
+    libXfixes-devel libXrandr-devel libXrender-devel libxkbcommon-devel \
+    mesa-libGL-devel mesa-libEGL-devel
+
+# Build a minimal static SDL3 (video only) into ~/sdl3-prefix:
+curl -LO https://github.com/libsdl-org/SDL/releases/download/release-3.4.12/SDL3-3.4.12.tar.gz
+tar xzf SDL3-3.4.12.tar.gz && cd SDL3-3.4.12
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/sdl3-prefix \
+    -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF \
+    -DSDL_AUDIO=OFF -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_HIDAPI=OFF \
+    -DSDL_CAMERA=OFF -DSDL_SENSOR=OFF -DSDL_X11_XTEST=OFF -DSDL_X11_XSCRNSAVER=OFF
+cmake --build build -j && cmake --install build
+cd ..
+```
+
+On Rocky/RHEL 8 the base GCC is too old; use a newer toolchain, e.g.
+`scl enable gcc-toolset-13 '<build commands>'`.
 
 ### Configure & build
 
 ```sh
-# Help CMake find a Homebrew SDL3 (macOS); adjust for your platform:
+# Point CMake at your SDL3. macOS (Homebrew):
 export CMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+# Linux (SDL3 built above):
+export CMAKE_PREFIX_PATH="$HOME/sdl3-prefix"
 
 cmake -S . -B build
 cmake --build build -j4
 ```
+
+On Linux the GUI links SDL3, ImGui, and the C++/GCC runtime statically; the
+resulting binary depends only on core glibc (`libc`, `libm`, `libpthread`,
+`libdl`) and loads X11/GL dynamically at runtime.
 
 This produces two executables in `build/`:
 
@@ -132,9 +161,10 @@ claude/               Developer research notes
 
 ## Status & known limitations
 
-- **macOS** is validated. The Linux and Windows builds share the same CMake +
-  SDL3 path and are expected to build, but have **not yet been validated** on
-  those platforms.
+- **macOS** and **Linux** (Rocky Linux 8.10, GCC 13, X11) are validated — the
+  GUI builds and renders identically on both, and the Linux binary is
+  statically linked for distribution. **Windows** shares the same CMake + SDL3
+  path and is expected to build but has **not yet been validated**.
 - **CBF binary format** (imgCIF) and **CBF electron-density maps** are not
   supported — those require CBFlib (`RASMOL_USE_CBFLIB`, not yet wired). Ordinary
   CIF/mmCIF **coordinate** files work via the built-in parser.

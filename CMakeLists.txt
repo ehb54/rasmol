@@ -159,6 +159,14 @@ if(RASMOL_BUILD_SDL)
         target_compile_definitions(rasmol PRIVATE
             "RASMOL_GIT_REV=\"${RASMOL_GIT_REV}\"")
 
+        # For distribution, statically link the C++/GCC runtime on GCC (Linux)
+        # so the binary does not depend on the target system's libstdc++
+        # version. SDL3/ImGui are already static libraries; X11/GL are loaded
+        # dynamically by SDL at runtime.
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            target_link_options(rasmol PRIVATE -static-libgcc -static-libstdc++)
+        endif()
+
         # Ship the help file next to the binary so RASMOLPATH (set to the
         # executable's directory at runtime) finds it in dev builds.
         if(EXISTS ${CMAKE_SOURCE_DIR}/doc/rasmol.hlp)
