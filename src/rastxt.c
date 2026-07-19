@@ -103,6 +103,8 @@
 #include "pixutils.h"
 #include "outfile.h"
 #include "langsel.h"
+#include "multiple.h"
+#include "wbrotate.h"
 
 
 #ifdef IBMPC
@@ -706,6 +708,8 @@ int main( int argc, char *argv[] )
     InitialiseOutFile();
     InitialiseRepres();
     InitHelpFile();
+    InitialiseMultiple();   /* allocate per-molecule buffers (multi-molecule) */
+    InitialiseWBRotate();   /* whole-bond rotation state */
 
     if( ProfCount )
     {   if( FileNamePtr )

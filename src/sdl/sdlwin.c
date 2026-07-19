@@ -47,6 +47,8 @@
 #include "pixutils.h"
 #include "outfile.h"
 #include "langsel.h"
+#include "multiple.h"
+#include "wbrotate.h"
 
 #include "ui.h"
 
@@ -523,6 +525,8 @@ static void InitSubsystems( void )
     InitialiseOutFile();
     InitialiseRepres();
     InitHelpFile();
+    InitialiseMultiple();   /* allocate per-molecule buffers (multi-molecule) */
+    InitialiseWBRotate();   /* whole-bond rotation state */
 }
 
 
