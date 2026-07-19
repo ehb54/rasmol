@@ -32,6 +32,10 @@ typedef struct UiCallbacks {
     /* Open a save dialog and write the image/model in the given RasMol
        format token (e.g. "bmp", "ppm", "epsf", "pdb"). */
     void        (*save_as)( const char *format );
+    /* Append text to the console log (without executing it). */
+    void        (*print)( const char *text );
+    /* Clear the console log. */
+    void        (*clear)( void );
 } UiCallbacks;
 
 /* Keys for UiCallbacks.get_state. */

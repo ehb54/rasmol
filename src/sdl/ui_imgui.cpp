@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <float.h>
 #include <ctype.h>
 #include <vector>
@@ -112,6 +113,8 @@ static void DispItem( const char *label, int id, const char *enable )
     }
 }
 
+static void LoadHistory( void );   /* forward decl (defined with the console) */
+
 /* ---- public API ---- */
 
 extern "C" int Ui_Init( SDL_Window *window, SDL_Renderer *renderer,
@@ -126,6 +129,8 @@ extern "C" int Ui_Init( SDL_Window *window, SDL_Renderer *renderer,
     ImGui::StyleColorsDark();
     ImGuiIO &io = ImGui::GetIO();
     io.IniFilename = nullptr;   /* don't litter an imgui.ini file */
+
+    LoadHistory();
 
     if( !ImGui_ImplSDL3_InitForSDLRenderer( window, renderer ) )
         return 0;
@@ -317,7 +322,42 @@ static void BuildAbout( void )
 static std::vector<std::string> g_history;
 static int  g_history_pos = -1;   /* -1 = editing a fresh line */
 
-/* Common top-level RasMol commands, for Tab completion. */
+/* Persistent command history (~/.rasmol_history). */
+static std::string HistoryPath( void )
+{
+    const char *home = getenv( "HOME" );
+#ifdef _WIN32
+    if( !home ) home = getenv( "USERPROFILE" );
+#endif
+    return home ? ( std::string( home ) + "/.rasmol_history" ) : std::string();
+}
+
+static void LoadHistory( void )
+{
+    std::string p = HistoryPath();
+    if( p.empty() ) return;
+    FILE *f = fopen( p.c_str(), "r" );
+    if( !f ) return;
+    char line[512];
+    while( fgets( line, sizeof(line), f ) )
+    {   size_t n = strlen( line );
+        while( n && ( line[n-1] == '\n' || line[n-1] == '\r' ) ) line[--n] = '\0';
+        if( line[0] ) g_history.push_back( line );
+    }
+    fclose( f );
+}
+
+static void AppendHistory( const char *cmd )
+{
+    std::string p = HistoryPath();
+    if( p.empty() ) return;
+    FILE *f = fopen( p.c_str(), "a" );
+    if( !f ) return;
+    fprintf( f, "%s\n", cmd );
+    fclose( f );
+}
+
+/* Word lists for Tab completion (all NULL-terminated). */
 static const char *g_commands[] = {
     "backbone", "background", "bond", "cartoons", "center", "centre", "clipboard",
     "colour", "color", "connect", "cpk", "define", "dots", "echo", "exit",
@@ -325,8 +365,25 @@ static const char *g_commands[] = {
     "quit", "refresh", "reset", "restrict", "ribbons", "rotate", "save", "script",
     "select", "set", "show", "slab", "source", "spacefill", "ssbonds", "star",
     "stereo", "strands", "structure", "trace", "translate", "wireframe", "write",
-    "zap", "zoom"
+    "zap", "zoom", nullptr
 };
+static const char *g_colours[] = {
+    "cpk", "shapely", "group", "chain", "structure", "temperature", "user",
+    "model", "amino", "white", "black", "red", "green", "blue", "yellow",
+    "cyan", "magenta", "orange", "purple", "none", nullptr
+};
+static const char *g_setopts[] = {
+    "ambient", "axes", "background", "bondmode", "boundingbox", "cartoons",
+    "display", "fontsize", "hbond", "hetero", "hydrogen", "picking", "radius",
+    "shadow", "slabmode", "specular", "stereo", "strands", "unitcell", "write",
+    nullptr
+};
+static const char *g_selects[] = {
+    "all", "none", "protein", "nucleic", "dna", "rna", "hetero", "water",
+    "ligand", "backbone", "sidechain", "hydrogen", "alpha", "helix", "sheet",
+    "turn", "selected", nullptr
+};
+static const char *g_empty[] = { nullptr };
 
 static bool CiEqualN( const char *a, const char *b, int n )
 {
@@ -336,21 +393,40 @@ static bool CiEqualN( const char *a, const char *b, int n )
     return true;
 }
 
+/* Pick the completion word list based on the command context. */
+static const char **CompletionList( const char *buf, const char *word_start )
+{
+    const char *p = buf;
+    while( *p == ' ' || *p == '\t' ) p++;
+    if( word_start <= p )
+        return g_commands;                    /* completing the command itself */
+
+    char first[32]; int i = 0;
+    while( p[i] && p[i] != ' ' && p[i] != '\t' && i < 31 )
+    {   first[i] = (char)tolower((unsigned char)p[i]); i++; }
+    first[i] = '\0';
+
+    if( !strcmp(first,"colour") || !strcmp(first,"color") )     return g_colours;
+    if( !strcmp(first,"set") )                                 return g_setopts;
+    if( !strcmp(first,"select") || !strcmp(first,"restrict") ) return g_selects;
+    return g_empty;
+}
+
 static int ConsoleInputCallback( ImGuiInputTextCallbackData *data )
 {
     if( data->EventFlag == ImGuiInputTextFlags_CallbackCompletion )
     {
-        /* Complete the word under the cursor against the command list. */
         const char *end   = data->Buf + data->CursorPos;
         const char *start = end;
         while( start > data->Buf && start[-1] != ' ' && start[-1] != '\t' )
             start--;
         int n = (int)( end - start );
 
+        const char **list = CompletionList( data->Buf, start );
         std::vector<const char *> hits;
-        for( const char *c : g_commands )
-            if( (int)strlen(c) >= n && CiEqualN( c, start, n ) )
-                hits.push_back( c );
+        for( int i = 0; list[i]; i++ )
+            if( (int)strlen(list[i]) >= n && CiEqualN( list[i], start, n ) )
+                hits.push_back( list[i] );
 
         if( hits.size() == 1 )
         {   data->DeleteChars( (int)( start - data->Buf ), n );
@@ -371,6 +447,13 @@ static int ConsoleInputCallback( ImGuiInputTextCallbackData *data )
             if( len > n )
             {   data->DeleteChars( (int)( start - data->Buf ), n );
                 data->InsertChars( data->CursorPos, hits[0], hits[0] + len );
+            }
+            /* List the candidates in the console (shell style). */
+            if( g_cb.print )
+            {   std::string s = "\n";
+                for( const char *h : hits ) { s += h; s += "   "; }
+                s += "\n";
+                g_cb.print( s.c_str() );
             }
         }
     }
@@ -417,16 +500,24 @@ static void BuildConsole( void )
         const char *txt = g_cb.console_text ? g_cb.console_text( &len ) : "";
 
         /* Read-only multiline input so the log text is selectable and can be
-           copied (drag-select then Ctrl+C, or Ctrl+A to select all). Scroll
-           to the bottom whenever new output arrives. */
+           copied (drag-select then Ctrl+C, or Ctrl+A to select all). It is
+           sized to its full content height inside a scrolling child so we can
+           reliably keep it pinned to the bottom as new output arrives (the
+           input's own scroll doesn't follow appended text). */
+        ImGui::BeginChild( "##logscroll", ImVec2( 0, -footer ) );
+        int nlines = 1;
+        for( int i = 0; i < len; i++ ) if( txt[i] == '\n' ) nlines++;
+        float text_h = nlines * ImGui::GetTextLineHeight()
+                     + ImGui::GetStyle().FramePadding.y * 2.0f + 2.0f;
+        ImGui::InputTextMultiline( "##log", (char *)txt, (size_t)len + 1,
+                                   ImVec2( -FLT_MIN, text_h ),
+                                   ImGuiInputTextFlags_ReadOnly );
         static int last_len = -1;
         if( len != last_len )
         {   last_len = len;
-            ImGui::SetNextWindowScroll( ImVec2( -1.0f, FLT_MAX ) );
+            ImGui::SetScrollHereY( 1.0f );   /* keep pinned to the bottom */
         }
-        ImGui::InputTextMultiline( "##log", (char *)txt, (size_t)len + 1,
-                                   ImVec2( -FLT_MIN, -footer ),
-                                   ImGuiInputTextFlags_ReadOnly );
+        ImGui::EndChild();
 
         ImGui::Separator();
 
@@ -442,7 +533,9 @@ static void BuildConsole( void )
             {   RunCmd( input );
                 /* record in history (skip immediate duplicates) */
                 if( g_history.empty() || g_history.back() != input )
-                    g_history.push_back( input );
+                {   g_history.push_back( input );
+                    AppendHistory( input );
+                }
             }
             g_history_pos = -1;
             input[0] = '\0';
@@ -452,6 +545,12 @@ static void BuildConsole( void )
         ImGui::SetItemDefaultFocus();
         if( reclaim )
             ImGui::SetKeyboardFocusHere( -1 );
+
+        /* Ctrl+L clears the console log. */
+        if( ImGui::IsWindowFocused( ImGuiFocusedFlags_RootAndChildWindows ) &&
+            ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed( ImGuiKey_L ) &&
+            g_cb.clear )
+            g_cb.clear();
     }
     ImGui::End();
 }

@@ -104,6 +104,17 @@ static const char *ConsoleTextCB( int *len )
     return g_console_buf;
 }
 
+static void ConsolePrintCB( const char *text )
+{
+    if( text ) ConsoleAppend( text, (int)strlen( text ) );
+}
+
+static void ConsoleClearCB( void )
+{
+    g_console_len = 0;
+    g_console_buf[0] = '\0';
+}
+
 /* Execute a RasMol command line by feeding it through the core line editor,
    exactly as if typed.  Used by both the UI and (indirectly) the terminal. */
 static void RunCommandString( const char *cmd )
@@ -502,6 +513,9 @@ static void ServiceConsole( int *quit, int *redraw )
         if( n == 0 ) { g_stdin_eof = True; break; }   /* EOF: keep window */
         if( n < 0 )  break;
 
+        if( b == 0x04 )                 /* Ctrl-D (EOT) exits */
+        {   *quit = True; return; }
+
         ch = DecodeByte( b );
         if( ch < 0 )
             continue;
@@ -739,6 +753,8 @@ int main( int argc, char *argv[] )
         cb.about        = AboutText();
         cb.get_state    = GetStateCB;
         cb.save_as      = SaveAsCB;
+        cb.print        = ConsolePrintCB;
+        cb.clear        = ConsoleClearCB;
         g_ui_ready = Ui_Init( g_window, g_renderer, &cb );
         if( !g_ui_ready )
             fprintf( stderr, "Warning: UI init failed: %s\n", SDL_GetError() );
