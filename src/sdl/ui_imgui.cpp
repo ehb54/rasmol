@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <float.h>
 
 static UiCallbacks   g_cb;
 static SDL_Window   *g_window   = nullptr;
@@ -318,18 +319,21 @@ static void BuildConsole( void )
     {
         const float footer = ImGui::GetStyle().ItemSpacing.y +
                              ImGui::GetFrameHeightWithSpacing();
-        ImGui::BeginChild( "scroll", ImVec2( 0, -footer ), ImGuiChildFlags_None,
-                           ImGuiWindowFlags_HorizontalScrollbar );
 
         int len = 0;
         const char *txt = g_cb.console_text ? g_cb.console_text( &len ) : "";
-        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 4, 1 ) );
-        ImGui::TextUnformatted( txt, txt + len );
-        ImGui::PopStyleVar();
 
-        if( ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f )
-            ImGui::SetScrollHereY( 1.0f );
-        ImGui::EndChild();
+        /* Read-only multiline input so the log text is selectable and can be
+           copied (drag-select then Ctrl+C, or Ctrl+A to select all). Scroll
+           to the bottom whenever new output arrives. */
+        static int last_len = -1;
+        if( len != last_len )
+        {   last_len = len;
+            ImGui::SetNextWindowScroll( ImVec2( -1.0f, FLT_MAX ) );
+        }
+        ImGui::InputTextMultiline( "##log", (char *)txt, (size_t)len + 1,
+                                   ImVec2( -FLT_MIN, -footer ),
+                                   ImGuiInputTextFlags_ReadOnly );
 
         ImGui::Separator();
 
