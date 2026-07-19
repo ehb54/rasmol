@@ -115,6 +115,31 @@ This produces two executables in `build/`:
 | `RASMOL_BUILD_TEXT`   | `ON`    | Build the headless text frontend (`rasmol-text`).             |
 | `RASMOL_USE_CBFLIB`   | `OFF`   | CBF binary / CBF-map support via CBFlib. **Not yet wired up.** |
 
+### One-shot distribution builds
+
+The `scripts/` directory reproduces the exact binaries in `binaries/` — each
+script builds a lean static SDL3 from source, builds RasMol against it, strips
+the result, and stages it under `binaries/<platform>/`:
+
+```sh
+scripts/build-macos.sh      # -> binaries/macos-universal/  (arm64 + x86_64, run on macOS)
+scripts/build-linux.sh      # -> binaries/linux-x86_64/     (run on Linux)
+scripts/build-windows.sh    # -> binaries/windows-x86_64/   (MinGW cross-compile, run on macOS or Linux)
+```
+
+Notes:
+- **Linux:** for the widest reach, run on the oldest glibc you want to support
+  (a binary built against old glibc runs on that and every newer version). If
+  the system compiler is too old for C++17, prefix a newer one, e.g.
+  `scl enable gcc-toolset-13 scripts/build-linux.sh` (Rocky/RHEL 8) or
+  `CC=gcc-9 CXX=g++-9 scripts/build-linux.sh` (Ubuntu 16.04).
+- **Windows:** needs `mingw-w64` (`brew install mingw-w64`, or the distro's
+  `g++-mingw-w64-x86-64` / `mingw64-gcc-c++`). Uses
+  `cmake/mingw-toolchain.cmake`.
+
+SDL3 sources are cached under `build-deps/` (git-ignored); delete a
+`build-deps/sdl3-*` prefix to force an SDL3 rebuild.
+
 ---
 
 ## Running
