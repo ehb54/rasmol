@@ -634,6 +634,7 @@ int main( int argc, char *argv[] )
 {
     const char *filename = NULL;
     const char *snapshot = NULL;
+    const char *scriptname = NULL;
     int i, running, done;
 
     setvbuf( stdout, NULL, _IONBF, 0 );   /* prompt/echo appears immediately */
@@ -647,6 +648,8 @@ int main( int argc, char *argv[] )
     for( i=1; i<argc; i++ )
     {   if( !strcmp(argv[i],"-snapshot") && i+1<argc )
         {   snapshot = argv[++i];
+        } else if( !strcmp(argv[i],"-script") && i+1<argc )
+        {   scriptname = argv[++i];
         } else if( !strcmp(argv[i],"-pdb") && i+1<argc )
         {   FileFormat = FormatPDB; filename = argv[++i];
         } else if( argv[i][0] != '-' )
@@ -713,6 +716,17 @@ int main( int argc, char *argv[] )
                 fprintf( stderr, "Error: unable to read '%s'\n", filename );
         } else
             OpenFileCB( filename );
+    }
+
+    /* Run a RasMol script (e.g. UltraScan SOMO bead models are shown via
+       "rasmol -script model.spt", where the script loads the bead PDB and
+       applies the spacefill/colour representation). */
+    if( scriptname )
+    {   FILE *fp = fopen( scriptname, "rb" );
+        if( fp )
+            LoadScriptFile( fp, (char*)scriptname );
+        else
+            fprintf( stderr, "Error: script '%s' not found\n", scriptname );
     }
 
     if( snapshot )
