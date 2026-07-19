@@ -102,7 +102,7 @@ static void DispItem( const char *label, int id, const char *enable )
         g_display = id;
         snprintf( cmd, sizeof(cmd),
                   "spacefill off\nwireframe off\nbackbone off\n"
-                  "ribbons off\nstrands off\ncartoons off\nsurface off\n%s",
+                  "ribbons off\nstrands off\ncartoons off\ndots off\n%s",
                   enable );
         RunCmd( cmd );
     }
