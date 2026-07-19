@@ -88,6 +88,25 @@ static void ExportItem( const char *label, const char *fmt )
         g_cb.save_as( fmt );
 }
 
+/* The current exclusive Display representation (-1 = none chosen yet). */
+static int g_display = -1;
+
+/* A Display item: switching to it clears the other representations first
+   (RasMol representations are additive, so the menu enforces one at a time,
+   as classic RasMol does). Checkmarks the active one. */
+static void DispItem( const char *label, int id, const char *enable )
+{
+    if( ImGui::MenuItem( label, nullptr, g_display == id ) )
+    {   char cmd[256];
+        g_display = id;
+        snprintf( cmd, sizeof(cmd),
+                  "spacefill off\nwireframe off\nbackbone off\n"
+                  "ribbons off\nstrands off\ncartoons off\nsurface off\n%s",
+                  enable );
+        RunCmd( cmd );
+    }
+}
+
 /* ---- public API ---- */
 
 extern "C" int Ui_Init( SDL_Window *window, SDL_Renderer *renderer,
@@ -171,15 +190,15 @@ static void BuildMenuBar( void )
     }
 
     if( ImGui::BeginMenu( "Display" ) )
-    {   CmdItem( "Wireframe",    "backbone off\nspacefill off\nwireframe on" );
-        CmdItem( "Backbone",     "wireframe off\nspacefill off\nbackbone on" );
-        CmdItem( "Sticks",       "spacefill off\nbackbone off\nwireframe 100" );
-        CmdItem( "Spacefill",    "wireframe off\nbackbone off\nspacefill on" );
-        CmdItem( "Ball & Stick", "backbone off\nwireframe 60\nspacefill 150" );
-        CmdItem( "Ribbons",      "cartoons off\nstrands off\nribbons on" );
-        CmdItem( "Strands",      "ribbons off\ncartoons off\nstrands on" );
-        CmdItem( "Cartoons",     "ribbons off\nstrands off\ncartoons on" );
-        CmdItem( "Molecular Surface", "surface solvent solid" );
+    {   DispItem( "Wireframe",    0, "wireframe on" );
+        DispItem( "Backbone",     1, "backbone 80" );
+        DispItem( "Sticks",       2, "wireframe 100" );
+        DispItem( "Spacefill",    3, "spacefill on" );
+        DispItem( "Ball & Stick", 4, "spacefill 120\nwireframe 40" );
+        DispItem( "Ribbons",      5, "ribbons on" );
+        DispItem( "Strands",      6, "strands on" );
+        DispItem( "Cartoons",     7, "cartoons on" );
+        DispItem( "Molecular Surface", 8, "surface solvent solid" );
         ImGui::EndMenu();
     }
 
