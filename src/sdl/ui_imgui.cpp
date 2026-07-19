@@ -103,7 +103,7 @@ static void DispItem( const char *label, int id, const char *enable )
         g_display = id;
         snprintf( cmd, sizeof(cmd),
                   "spacefill off\nwireframe off\nbackbone off\n"
-                  "ribbons off\nstrands off\ncartoons off\ndots off\n%s",
+                  "ribbons off\nstrands off\ncartoons off\n%s",
                   enable );
         RunCmd( cmd );
     }
@@ -200,7 +200,13 @@ static void BuildMenuBar( void )
         DispItem( "Ribbons",      5, "ribbons on" );
         DispItem( "Strands",      6, "strands on" );
         DispItem( "Cartoons",     7, "cartoons on" );
-        DispItem( "Molecular Surface", 8, "surface solvent solid" );
+        ImGui::Separator();
+        /* A dotted molecular (solvent-accessible) surface, shown as an overlay
+           on top of the current representation. RasMol's solid 'surface'
+           command renders nothing here (and crashes 2.7.5.2), so use dots. */
+        static bool surface = false;
+        if( ImGui::MenuItem( "Molecular Surface", nullptr, &surface ) )
+            RunCmd( surface ? "dots on" : "dots off" );
         ImGui::EndMenu();
     }
 
