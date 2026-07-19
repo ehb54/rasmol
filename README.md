@@ -170,9 +170,10 @@ claude/               Developer research notes
 ## Status & known limitations
 
 - **macOS** and **Linux** (Rocky Linux 8.10, GCC 13, X11) are validated — the
-  GUI builds and renders identically on both, and the Linux binary is
-  statically linked for distribution. **Windows** shares the same CMake + SDL3
-  path and is expected to build but has **not yet been validated**.
+  GUI builds and renders identically on both, and the binaries are statically
+  linked for distribution. **Windows** cross-compiles to a self-contained static
+  `rasmol.exe` with MinGW-w64 (provided under `binaries/`) but has **not yet
+  been validated at runtime on real Windows**.
 - **CBF binary format** (imgCIF) and **CBF electron-density maps** are not
   supported — those require CBFlib (`RASMOL_USE_CBFLIB`, not yet wired). Ordinary
   CIF/mmCIF **coordinate** files work via the built-in parser.

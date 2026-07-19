@@ -8,6 +8,7 @@ program looks for it in its own directory).
 |--------|--------------|---------|
 | `linux-x86_64/`    | x86-64            | Any glibc ≥ 2.17 Linux — CentOS/RHEL 7, Ubuntu 14.04, and everything newer (built on Ubuntu 16.04) |
 | `macos-universal/` | Intel + Apple Silicon | macOS 11 (Big Sur) and later |
+| `windows-x86_64/`  | x86-64            | Windows 10 and later — **built (MinGW), not yet validated on real Windows** |
 
 These are statically linked (SDL3, Dear ImGui, and the C++ runtime are baked
 in). The Linux binary depends only on core glibc and loads X11/Wayland/OpenGL
@@ -34,6 +35,18 @@ launch if you obtained them via a downloaded archive. Either right-click →
 
 ```sh
 xattr -dr com.apple.quarantine ./rasmol
+```
+
+### Windows note
+
+`rasmol.exe` is a self-contained static build (cross-compiled with MinGW-w64);
+it needs only the Windows system DLLs and the Universal CRT present on Windows
+10+. It has **not yet been validated on real Windows** — please report whether
+it runs. A console window opens alongside the graphics window for command
+output. Run it from a folder that also contains `rasmol.hlp`:
+
+```
+rasmol.exe structure.pdb
 ```
 
 ## Rebuilding
