@@ -55,6 +55,39 @@ static void ShowOpenDialog( void )
                             filters, SDL_arraysize(filters), nullptr, false );
 }
 
+/* PickMode values (mirror render.h). */
+enum { PM_None=0, PM_Ident=1, PM_Dist=2, PM_Angle=3, PM_Torsn=4,
+       PM_Label=5, PM_Monit=6, PM_Centr=7, PM_Coord=9, PM_Bond=13 };
+
+static int UiState( int key )
+{
+    return g_cb.get_state ? g_cb.get_state( key ) : 0;
+}
+
+/* A checkbox menu item reflecting a core toggle; sends cmd_on/cmd_off. */
+static void ToggleItem( const char *label, int key,
+                        const char *cmd_on, const char *cmd_off )
+{
+    bool on = UiState( key ) != 0;
+    if( ImGui::MenuItem( label, nullptr, on ) )
+        RunCmd( on ? cmd_off : cmd_on );
+}
+
+/* A radio menu item, checked when PickMode matches. */
+static void PickItem( const char *label, int mode, const char *cmd )
+{
+    bool on = UiState( UI_STATE_PICKMODE ) == mode;
+    if( ImGui::MenuItem( label, nullptr, on ) )
+        RunCmd( cmd );
+}
+
+/* An Export item that opens a save dialog for the given format token. */
+static void ExportItem( const char *label, const char *fmt )
+{
+    if( ImGui::MenuItem( label ) && g_cb.save_as )
+        g_cb.save_as( fmt );
+}
+
 /* ---- public API ---- */
 
 extern "C" int Ui_Init( SDL_Window *window, SDL_Renderer *renderer,
@@ -130,10 +163,10 @@ static void BuildMenuBar( void )
 
     if( ImGui::BeginMenu( "File" ) )
     {   if( ImGui::MenuItem( "Open..." ) ) ShowOpenDialog();
-        ImGui::Separator();
+        if( ImGui::MenuItem( "Save As..." ) && g_cb.save_as ) g_cb.save_as( "pdb" );
         CmdItem( "Close",        "zap" );
         ImGui::Separator();
-        if( ImGui::MenuItem( "Quit" ) && g_cb.quit ) g_cb.quit();
+        if( ImGui::MenuItem( "Exit" ) && g_cb.quit ) g_cb.quit();
         ImGui::EndMenu();
     }
 
@@ -143,11 +176,9 @@ static void BuildMenuBar( void )
         CmdItem( "Sticks",       "spacefill off\nbackbone off\nwireframe 100" );
         CmdItem( "Spacefill",    "wireframe off\nbackbone off\nspacefill on" );
         CmdItem( "Ball & Stick", "backbone off\nwireframe 60\nspacefill 150" );
-        ImGui::Separator();
         CmdItem( "Ribbons",      "cartoons off\nstrands off\nribbons on" );
         CmdItem( "Strands",      "ribbons off\ncartoons off\nstrands on" );
         CmdItem( "Cartoons",     "ribbons off\nstrands off\ncartoons on" );
-        ImGui::Separator();
         CmdItem( "Molecular Surface", "surface solvent solid" );
         ImGui::EndMenu();
     }
@@ -160,31 +191,57 @@ static void BuildMenuBar( void )
         CmdItem( "Chain",        "colour chain" );
         CmdItem( "Temperature",  "colour temperature" );
         CmdItem( "Structure",    "colour structure" );
-        CmdItem( "Amino",        "colour amino" );
         CmdItem( "User",         "colour user" );
+        CmdItem( "Model",        "colour model" );
+        CmdItem( "Alt",          "colour altl" );
         ImGui::EndMenu();
     }
 
     if( ImGui::BeginMenu( "Options" ) )
-    {   CmdItem( "Slab Mode On",  "slab on" );
-        CmdItem( "Slab Mode Off", "slab off" );
-        ImGui::Separator();
-        CmdItem( "Specular On",   "set specular on" );
-        CmdItem( "Specular Off",  "set specular off" );
-        CmdItem( "Shadows On",    "set shadow on" );
-        CmdItem( "Shadows Off",   "set shadow off" );
-        CmdItem( "Labels On",     "labels on" );
-        CmdItem( "Labels Off",    "labels off" );
+    {   ToggleItem( "Slab Mode",    UI_STATE_SLAB,     "slab on",         "slab off" );
+        ToggleItem( "Hydrogens",    UI_STATE_HYDROGEN,
+                    "set hydrogen true\nselect all\nwireframe on",
+                    "set hydrogen false\nrestrict not hydrogen" );
+        ToggleItem( "Hetero Atoms", UI_STATE_HETERO,
+                    "set hetero true\nselect all\nwireframe on",
+                    "set hetero false\nrestrict not hetero" );
+        ToggleItem( "Specular",     UI_STATE_SPECULAR, "set specular on", "set specular off" );
+        ToggleItem( "Shadows",      UI_STATE_SHADOW,   "set shadow on",   "set shadow off" );
+        ToggleItem( "Stereo",       UI_STATE_STEREO,   "stereo on",       "stereo off" );
+        ToggleItem( "Labels",       UI_STATE_LABELS,   "labels on",       "labels off" );
         ImGui::EndMenu();
     }
 
     if( ImGui::BeginMenu( "Settings" ) )
-    {   CmdItem( "Pick Off",      "set picking off" );
-        CmdItem( "Pick Ident",    "set picking ident" );
-        CmdItem( "Pick Distance", "set picking distance" );
-        CmdItem( "Pick Angle",    "set picking angle" );
-        CmdItem( "Pick Torsion",  "set picking torsion" );
-        CmdItem( "Pick Label",    "set picking label" );
+    {   PickItem( "Pick Off",      PM_None,  "set picking off" );
+        PickItem( "Pick Ident",    PM_Ident, "set picking ident" );
+        PickItem( "Pick Distance", PM_Dist,  "set picking distance" );
+        PickItem( "Pick Monitor",  PM_Monit, "set picking monitor" );
+        PickItem( "Pick Angle",    PM_Angle, "set picking angle" );
+        PickItem( "Pick Torsion",  PM_Torsn, "set picking torsion" );
+        PickItem( "Pick Label",    PM_Label, "set picking label" );
+        PickItem( "Pick Centre",   PM_Centr, "set picking centre" );
+        PickItem( "Pick Coord",    PM_Coord, "set picking coord" );
+        PickItem( "Pick Bond",     PM_Bond,  "set picking bond" );
+        ImGui::EndMenu();
+    }
+
+    if( ImGui::BeginMenu( "Export" ) )
+    {   ExportItem( "BMP...",          "bmp" );
+        ExportItem( "GIF...",          "gif" );
+        ExportItem( "IRIS RGB...",     "iris" );
+        ExportItem( "PPM...",          "ppm" );
+        ExportItem( "Sun Raster...",   "sun" );
+        ExportItem( "PostScript...",   "epsf" );
+        ExportItem( "PICT...",         "pict" );
+        ExportItem( "Vector PS...",    "vectps" );
+        ExportItem( "Molscript...",    "molscript" );
+        ExportItem( "Kinemage...",     "kinemage" );
+        ExportItem( "POVRay 3...",     "povray" );
+        ExportItem( "VRML...",         "vrml" );
+        ExportItem( "Ramachandran...", "ramachan" );
+        ExportItem( "Raster3D...",     "raster3d" );
+        ExportItem( "RasMol Script...","script" );
         ImGui::EndMenu();
     }
 

@@ -139,6 +139,43 @@ static void OpenFileCB( const char *path )
 
 static void QuitCB( void ) { g_quit = True; }
 
+/* Report a toggle/mode state so the menus can show check marks. */
+static int GetStateCB( int key )
+{
+    switch( key )
+    {   case UI_STATE_SLAB:     return UseSlabPlane;
+        case UI_STATE_HYDROGEN: return Hydrogens;
+        case UI_STATE_HETERO:   return HetaGroups;
+        case UI_STATE_SPECULAR: return FakeSpecular;
+        case UI_STATE_SHADOW:   return UseShadow;
+        case UI_STATE_STEREO:   return UseStereo;
+        case UI_STATE_LABELS:   return LabelOptFlag;
+        case UI_STATE_PICKMODE: return PickMode;
+    }
+    return 0;
+}
+
+/* Save-as: a save dialog whose result is written in a chosen RasMol format. */
+static char g_save_format[16];
+
+static void SaveDialogCB( void *userdata, const char * const *filelist, int filter )
+{
+    (void)userdata; (void)filter;
+    if( filelist && filelist[0] && g_save_format[0] )
+    {   char cmd[1200];
+        snprintf( cmd, sizeof(cmd), "set write true\nwrite %s \"%s\"",
+                  g_save_format, filelist[0] );
+        RunCommandString( cmd );
+    }
+}
+
+static void SaveAsCB( const char *format )
+{
+    if( !format ) return;
+    snprintf( g_save_format, sizeof(g_save_format), "%s", format );
+    SDL_ShowSaveFileDialog( SaveDialogCB, NULL, g_window, NULL, 0, NULL );
+}
+
 #ifndef RASMOL_GIT_REV
 #define RASMOL_GIT_REV "unknown"
 #endif
@@ -700,6 +737,8 @@ int main( int argc, char *argv[] )
         cb.open_file    = OpenFileCB;
         cb.quit         = QuitCB;
         cb.about        = AboutText();
+        cb.get_state    = GetStateCB;
+        cb.save_as      = SaveAsCB;
         g_ui_ready = Ui_Init( g_window, g_renderer, &cb );
         if( !g_ui_ready )
             fprintf( stderr, "Warning: UI init failed: %s\n", SDL_GetError() );

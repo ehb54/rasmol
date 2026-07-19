@@ -27,7 +27,18 @@ typedef struct UiCallbacks {
     void        (*quit)( void );
     /* Multi-line version/build text shown in Help > About (may be NULL). */
     const char  *about;
+    /* Query a toggle/mode state (UI_STATE_*), for menu check marks. */
+    int         (*get_state)( int key );
+    /* Open a save dialog and write the image/model in the given RasMol
+       format token (e.g. "bmp", "ppm", "epsf", "pdb"). */
+    void        (*save_as)( const char *format );
 } UiCallbacks;
+
+/* Keys for UiCallbacks.get_state. */
+enum {
+    UI_STATE_SLAB, UI_STATE_HYDROGEN, UI_STATE_HETERO, UI_STATE_SPECULAR,
+    UI_STATE_SHADOW, UI_STATE_STEREO, UI_STATE_LABELS, UI_STATE_PICKMODE
+};
 
 /* Lifecycle. Returns 1 on success. */
 int  Ui_Init( SDL_Window *window, SDL_Renderer *renderer, const UiCallbacks *cb );
