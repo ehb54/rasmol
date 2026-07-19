@@ -655,6 +655,15 @@ int main( int argc, char *argv[] )
         return 1;
     }
 
+    /* Let RasMol find rasmol.hlp (and other data) next to the executable, so
+       help works regardless of the working directory.  Only set a default --
+       a user-provided RASMOLPATH still wins. */
+    if( !getenv( "RASMOLPATH" ) )
+    {   const char *base = SDL_GetBasePath();
+        if( base )
+            setenv( "RASMOLPATH", base, 0 );
+    }
+
     /* Roomy default so the menu bar, molecule view and console all fit. */
     if( !InitWidth )  InitWidth  = 800;
     if( !InitHeight ) InitHeight = 720;

@@ -154,6 +154,16 @@ if(RASMOL_BUILD_SDL)
         target_compile_options(rasmol PRIVATE ${RASMOL_LEGACY_FLAGS})
         target_compile_definitions(rasmol PRIVATE
             "RASMOL_GIT_REV=\"${RASMOL_GIT_REV}\"")
+
+        # Ship the help file next to the binary so RASMOLPATH (set to the
+        # executable's directory at runtime) finds it in dev builds.
+        if(EXISTS ${CMAKE_SOURCE_DIR}/doc/rasmol.hlp)
+            add_custom_command(TARGET rasmol POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${CMAKE_SOURCE_DIR}/doc/rasmol.hlp
+                        $<TARGET_FILE_DIR:rasmol>/rasmol.hlp)
+            install(FILES ${CMAKE_SOURCE_DIR}/doc/rasmol.hlp DESTINATION bin)
+        endif()
         install(TARGETS rasmol RUNTIME DESTINATION bin)
     else()
         message(WARNING
