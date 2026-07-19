@@ -116,7 +116,9 @@
 /* #define XPROCARCH    */
 #define USE_UNAME
 
+#ifndef NO_CBFLIB
 #define USE_CBFLIB
+#endif
 
 #ifndef CNEARTREE_FAR
 #define CNEARTREE_FAR 
