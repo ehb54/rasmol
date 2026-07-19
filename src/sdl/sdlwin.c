@@ -19,6 +19,13 @@
 #include <stdio.h>
 #include <math.h>
 
+#ifndef _WIN32
+#include <unistd.h>
+#include <termios.h>
+#include <sys/select.h>
+#include <signal.h>
+#endif
+
 #include <SDL3/SDL.h>
 
 /* This frontend owns the RASMOL/GRAPHICS global definitions (the headers emit
@@ -54,6 +61,10 @@ static char *FileNamePtr;
 static char *ScriptNamePtr;
 static int   FileFormat;
 static int   ProfCount;
+
+#ifndef _WIN32
+static void TermRestore( void );   /* forward decl (used by CloseDisplay) */
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Graphics contract expected by the RasMol core (see graphics.h)     */
@@ -194,6 +205,9 @@ int OpenDisplay( void )
 
 void CloseDisplay( void )
 {
+#ifndef _WIN32
+    TermRestore();
+#endif
     if( g_texture )  SDL_DestroyTexture( g_texture );
     if( g_renderer ) SDL_DestroyRenderer( g_renderer );
     if( g_window )   SDL_DestroyWindow( g_window );
@@ -243,6 +257,132 @@ int CheckInterpName( char __huge *name, unsigned long __huge *interpid )
 int SendInterpCommand( char __huge *name, unsigned long interpid,
                        char __huge *command )
 {   (void)name; (void)interpid; (void)command; return False; }
+
+
+/* ------------------------------------------------------------------ */
+/* Terminal command console                                           */
+/*                                                                    */
+/* Classic RasMol runs an interactive "RasMol>" command line in the   */
+/* controlling terminal alongside the graphics window.  We reproduce  */
+/* that: when stdin is a tty we put it in raw mode and feed bytes to   */
+/* the core's line editor (ProcessCharacter/ExecuteCommand); the SDL   */
+/* event loop and stdin are multiplexed single-threaded so the        */
+/* non-reentrant core is only ever touched from the main thread.      */
+/* ------------------------------------------------------------------ */
+#ifndef _WIN32
+static struct termios g_orig_term;
+static int  g_term_raw  = False;   /* terminal currently in raw mode  */
+static int  g_console   = False;   /* stdin is an interactive tty     */
+static int  g_stdin_eof = False;   /* piped stdin exhausted           */
+
+static void TermRestore( void )
+{
+    if( g_term_raw )
+    {   tcsetattr( STDIN_FILENO, TCSANOW, &g_orig_term );
+        g_term_raw = False;
+    }
+}
+
+static void TermRaw( void )
+{
+    struct termios raw;
+
+    if( !isatty( STDIN_FILENO ) )
+        return;
+    tcgetattr( STDIN_FILENO, &g_orig_term );
+    raw = g_orig_term;
+    raw.c_iflag |= IGNBRK | IGNPAR;
+    raw.c_iflag &= ~( BRKINT | PARMRK | INPCK | IXON | IXOFF );
+    raw.c_lflag &= ~( ICANON | ISIG | ECHO | ECHOE | ECHOK | ECHONL | NOFLSH );
+    raw.c_cc[VMIN]  = 1;
+    raw.c_cc[VTIME] = 0;
+#ifdef VSUSP
+    raw.c_cc[VSUSP] = 0;
+#endif
+    tcsetattr( STDIN_FILENO, TCSANOW, &raw );
+    g_term_raw = True;
+    g_console  = True;
+}
+
+/* Translate a raw input byte, decoding VT100 arrow-key escape sequences
+   into the control codes RasMol's line editor expects (history/cursor).
+   Returns the code to feed ProcessCharacter, or -1 while mid-sequence. */
+static int DecodeByte( int ch )
+{
+    static int esc = 0;   /* 0: normal, 1: saw ESC, 2: saw ESC[ or ESC O */
+
+    switch( esc )
+    {
+    case 1:
+        esc = ( ch == '[' || ch == 'O' ) ? 2 : 0;
+        return -1;
+    case 2:
+        esc = 0;
+        switch( ch )
+        {   case 'A': return 0x10;   /* up    -> previous history */
+            case 'B': return 0x0e;   /* down  -> next history     */
+            case 'C': return 0x06;   /* right -> forward char     */
+            case 'D': return 0x02;   /* left  -> back char        */
+        }
+        return -1;
+    default:
+        if( ch == 0x1b ) { esc = 1; return -1; }
+        return ch;
+    }
+}
+
+/* Non-blocking: is a byte available on stdin right now? */
+static int StdinReady( void )
+{
+    struct timeval tv = { 0, 0 };
+    fd_set fds;
+    FD_ZERO( &fds );
+    FD_SET( STDIN_FILENO, &fds );
+    return select( STDIN_FILENO + 1, &fds, NULL, NULL, &tv ) > 0;
+}
+
+/* Drain any pending terminal input into the command interpreter.
+   Sets *quit if a command asks to exit, *redraw if the view changed. */
+static void ServiceConsole( int *quit, int *redraw )
+{
+    unsigned char b;
+    int ch;
+
+    if( g_stdin_eof )
+        return;
+
+    while( StdinReady() )
+    {   ssize_t n = read( STDIN_FILENO, &b, 1 );
+        if( n == 0 ) { g_stdin_eof = True; break; }   /* EOF: keep window */
+        if( n < 0 )  break;
+
+        ch = DecodeByte( b );
+        if( ch < 0 )
+            continue;
+
+        if( ProcessCharacter( ch ) )
+        {   if( ExecuteCommand() )
+            {   *quit = True; return;
+            }
+            /* Render after each command, as classic RasMol does, so a
+               command's effect is on screen (and in the frame buffer)
+               before the next command runs. */
+            RefreshScreen();
+            (void)redraw;
+            if( !CommandActive )
+                ResetCommandLine( 0 );
+        }
+    }
+}
+
+static void ConsoleSignal( int sig )
+{
+    (void)sig;
+    TermRestore();
+    CloseDisplay();
+    _exit( 0 );
+}
+#endif /* !_WIN32 */
 
 
 /* ------------------------------------------------------------------ */
@@ -321,6 +461,7 @@ int main( int argc, char *argv[] )
     int drag = DRAG_NONE;
     int i, running, done;
 
+    setvbuf( stdout, NULL, _IONBF, 0 );   /* prompt/echo appears immediately */
     InitCore();
 
     for( i=1; i<argc; i++ )
@@ -364,17 +505,39 @@ int main( int argc, char *argv[] )
         return done;
     }
 
+    WriteString( "RasMol Molecular Renderer (SDL frontend)\n" );
+    WriteString( "Based on RasMol 2.7.6 by Roger Sayle and "
+                 "Herbert J. Bernstein\n\n" );
+
     ReDrawFlag |= RFInitial | RFColour;
     RefreshScreen();
+
+#ifndef _WIN32
+    /* Classic RasMol interactive command line in the controlling terminal. */
+    TermRaw();
+    signal( SIGINT,  ConsoleSignal );
+    signal( SIGTERM, ConsoleSignal );
+    if( g_console )
+    {   WriteString( "Type RasMol commands here; rotate/zoom with the mouse "
+                     "in the window.\n" );
+        ResetCommandLine( 1 );
+    }
+#endif
 
     running = True;
     while( running )
     {   SDL_Event ev;
         int need = False;
+        int poll_stdin = False;
+        int got;
 
-        if( !SDL_WaitEvent( &ev ) )
-            break;
+#ifndef _WIN32
+        poll_stdin = ( g_console || !g_stdin_eof );
+#endif
+        got = poll_stdin ? SDL_WaitEventTimeout( &ev, 20 )
+                         : SDL_WaitEvent( &ev );
 
+        if( got )
         do {
             switch( ev.type )
             {
@@ -383,7 +546,9 @@ int main( int argc, char *argv[] )
                 break;
 
             case SDL_EVENT_KEY_DOWN:
-                if( ev.key.key == SDLK_ESCAPE || ev.key.key == SDLK_Q )
+                /* Window keystrokes are not command input (that is the
+                   terminal); only Escape closes the app as a convenience. */
+                if( ev.key.key == SDLK_ESCAPE )
                     running = False;
                 break;
 
@@ -438,6 +603,14 @@ int main( int argc, char *argv[] )
                 break;
             }
         } while( SDL_PollEvent( &ev ) );
+
+#ifndef _WIN32
+        {   int quit = False;
+            ServiceConsole( &quit, &need );
+            if( quit )
+                running = False;
+        }
+#endif
 
         if( need && running )
             RefreshScreen();
