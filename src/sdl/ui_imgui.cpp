@@ -147,7 +147,7 @@ static void BuildMenuBar( void )
         CmdItem( "Strands",      "ribbons off\ncartoons off\nstrands on" );
         CmdItem( "Cartoons",     "ribbons off\nstrands off\ncartoons on" );
         ImGui::Separator();
-        CmdItem( "Molecular Surface", "surface" );
+        CmdItem( "Molecular Surface", "surface solvent solid" );
         ImGui::EndMenu();
     }
 
@@ -193,7 +193,7 @@ static void BuildMenuBar( void )
     }
 
     if( ImGui::BeginMenu( "Help" ) )
-    {   CmdItem( "Information",   "info" );
+    {   CmdItem( "Information",   "show information" );
         CmdItem( "Commands",      "help" );
         ImGui::EndMenu();
     }
