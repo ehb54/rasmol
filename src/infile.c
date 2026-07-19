@@ -248,6 +248,23 @@
 #include "mmio.h"
 #endif
 
+#ifdef _WIN32
+/* strcasestr is a GNU/BSD extension not provided by MinGW. */
+static char *strcasestr( const char *hay, const char *needle )
+{
+    size_t nl = strlen( needle );
+    if( !nl ) return (char *)hay;
+    for( ; *hay; hay++ )
+    {   size_t i = 0;
+        while( i < nl &&
+               tolower((unsigned char)hay[i]) == tolower((unsigned char)needle[i]) )
+            i++;
+        if( i == nl ) return (char *)hay;
+    }
+    return (char *)0;
+}
+#endif
+
 
 #define FeatHelix    1
 #define FeatSheet    2

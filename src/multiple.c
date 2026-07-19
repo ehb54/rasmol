@@ -252,7 +252,7 @@
 #include <stdio.h>
 /* #include <string.h> */  /* Ladislav Michnovic, 10 Jan 08 */
 
-#if !defined(IBMPC) && !defined(VMS) && !defined(APPLEMAC)
+#if !defined(IBMPC) && !defined(VMS) && !defined(APPLEMAC) && !defined(_WIN32)
 #include <pwd.h>
 #endif
 

@@ -177,7 +177,7 @@
 #include <ctype.h>
 #include <stdio.h>
 
-#if !defined(IBMPC) && !defined(VMS) && !defined(APPLEMAC)
+#if !defined(IBMPC) && !defined(VMS) && !defined(APPLEMAC) && !defined(_WIN32)
 #include <pwd.h>
 #endif
 

@@ -8,11 +8,25 @@ project(RasMol
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Pin the C dialect to gnu17: the legacy K&R-style sources rely on pre-C23
+# semantics (notably empty () meaning an unprototyped function). Newer GCC
+# (15+) defaults to C23 and would reject them.
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
+
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
 option(RASMOL_USE_CBFLIB "Build with CBFlib for CIF/CBF and map I/O" OFF)
-option(RASMOL_BUILD_TEXT "Build the headless text frontend (rasmol-text)" ON)
+# The text frontend's interactive console uses POSIX termios; default it off on
+# Windows (the SDL GUI has its own in-window console).
+if(WIN32)
+    set(_rasmol_text_default OFF)
+else()
+    set(_rasmol_text_default ON)
+endif()
+option(RASMOL_BUILD_TEXT "Build the headless text frontend (rasmol-text)" ${_rasmol_text_default})
 
 set(RASMOL_DATADIR "${CMAKE_INSTALL_PREFIX}/share/rasmol"
     CACHE PATH "Runtime data directory (help text, rasmolrc, etc.)")
@@ -30,7 +44,7 @@ endif()
 include(CheckCCompilerFlag)
 set(RASMOL_LEGACY_FLAGS "")
 foreach(flag -Wno-implicit-function-declaration -Wno-implicit-int
-             -Wno-deprecated-non-prototype)
+             -Wno-int-conversion -Wno-deprecated-non-prototype)
     string(MAKE_C_IDENTIFIER "HAVE${flag}" flagvar)
     check_c_compiler_flag("${flag}" ${flagvar})
     if(${flagvar})

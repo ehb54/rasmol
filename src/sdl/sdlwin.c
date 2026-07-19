@@ -665,7 +665,11 @@ int main( int argc, char *argv[] )
     if( !getenv( "RASMOLPATH" ) )
     {   const char *base = SDL_GetBasePath();
         if( base )
+#ifdef _WIN32
+            _putenv_s( "RASMOLPATH", base );
+#else
             setenv( "RASMOLPATH", base, 0 );
+#endif
     }
 
     /* Roomy default so the menu bar, molecule view and console all fit. */
