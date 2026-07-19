@@ -13,6 +13,7 @@
 #include "backends/imgui_impl_sdlrenderer3.h"
 
 #include <string.h>
+#include <stdio.h>
 
 static UiCallbacks   g_cb;
 static SDL_Window   *g_window   = nullptr;
