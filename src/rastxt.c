@@ -102,6 +102,7 @@
 #include "repres.h"
 #include "pixutils.h"
 #include "outfile.h"
+#include "langsel.h"
 
 
 #ifdef IBMPC
@@ -664,6 +665,10 @@ int main( int argc, char *argv[] )
              VER_DATE, VER_COPYRIGHT);
 
     InitDefaultValues();
+    /* Populate the message-string table (MsgStrs); without this every
+       localized label prints as "(null)". */
+    TermLanguage = English;
+    SwitchLang( English );
     ProcessOptions(argc,argv);
     ReDrawFlag = 0;
     

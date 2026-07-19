@@ -325,7 +325,7 @@ static char HistBuff[HISTSIZE];
 static int MinHist,MaxHist;
 static int CurHist;
 
-static char *CurPrompt;
+static char *CurPrompt = "RasMol> ";
 static int CurPos,MaxPos;
 
 static MouseMapping *MouseBinding;
@@ -496,7 +496,8 @@ void ResetCommandLine( int state )
     if( CommandActive )
         WriteChar('\n');
     CommandActive = True;
-    WriteString(CurPrompt);
+    if( CurPrompt )
+        WriteString(CurPrompt);
 
     CurHist = MaxHist;
     CurPos = MaxPos = 0;

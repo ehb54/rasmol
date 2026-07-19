@@ -46,6 +46,7 @@
 #include "repres.h"
 #include "pixutils.h"
 #include "outfile.h"
+#include "langsel.h"
 
 /* ------------------------------------------------------------------ */
 /* SDL state                                                          */
@@ -463,6 +464,11 @@ int main( int argc, char *argv[] )
 
     setvbuf( stdout, NULL, _IONBF, 0 );   /* prompt/echo appears immediately */
     InitCore();
+
+    /* Populate the message-string table (MsgStrs); without this every
+       localized label prints as "(null)". */
+    TermLanguage = English;
+    SwitchLang( English );
 
     for( i=1; i<argc; i++ )
     {   if( !strcmp(argv[i],"-snapshot") && i+1<argc )
