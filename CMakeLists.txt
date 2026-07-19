@@ -8,10 +8,11 @@ project(RasMol
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Pin the C dialect to gnu17: the legacy K&R-style sources rely on pre-C23
+# Pin the C dialect to gnu11: the legacy K&R-style sources rely on pre-C23
 # semantics (notably empty () meaning an unprototyped function). Newer GCC
-# (15+) defaults to C23 and would reject them.
-set(CMAKE_C_STANDARD 17)
+# (15+) defaults to C23 and would reject them. (C11 rather than C17 so this
+# also works on older CMake, e.g. 3.20 — CMAKE_C_STANDARD 17 needs CMake 3.21.)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
