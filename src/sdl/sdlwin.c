@@ -26,6 +26,11 @@
 #include <signal.h>
 #endif
 
+#if !defined(_WIN32) && !defined(__APPLE__)
+#include <dlfcn.h>
+#define RASMOL_X11_ERROR_GUARD 1
+#endif
+
 #include <SDL3/SDL.h>
 
 /* This frontend owns the RASMOL/GRAPHICS global definitions (the headers emit
@@ -335,6 +340,71 @@ void RasMolFatalExit( char *msg )
     fprintf( stderr, "%s\n", msg );
     CloseDisplay();
     exit( 1 );
+}
+
+
+/* Old VNC servers (and some remote X servers) advertise GLX but cannot
+ * actually create a context.  SDL tries the accelerated renderers before
+ * falling back to its software one, and Xlib's default error handler calls
+ * exit(), so RasMol died on those displays before the fallback could happen.
+ *
+ * RasMol rasterizes on the CPU and only needs the renderer to blit a texture,
+ * so the software fallback is perfectly adequate.  Make X protocol errors
+ * non-fatal for the duration of renderer creation - and only that - so SDL can
+ * reach it.  Displays with working GLX are unaffected and still get an
+ * accelerated renderer.
+ */
+static int XErrorsIgnored = 0;
+
+#ifdef RASMOL_X11_ERROR_GUARD
+typedef int (*RasXErrorHandler)( void *, void * );
+typedef RasXErrorHandler (*RasXSetErrorHandlerFn)( RasXErrorHandler );
+
+static RasXSetErrorHandlerFn RasXSetErrorHandler = (RasXSetErrorHandlerFn)0;
+static RasXErrorHandler PrevXErrorHandler = (RasXErrorHandler)0;
+
+static int IgnoreXError( void *display, void *event )
+{
+    (void)display;  (void)event;
+    XErrorsIgnored++;
+    return 0;
+}
+
+static void BeginXErrorGuard( void )
+{
+    void *x11;
+
+    if( !(x11 = dlopen("libX11.so.6",RTLD_NOW|RTLD_GLOBAL)) )
+        if( !(x11 = dlopen("libX11.so",RTLD_NOW|RTLD_GLOBAL)) )
+            return;
+
+    RasXSetErrorHandler = (RasXSetErrorHandlerFn)dlsym(x11,"XSetErrorHandler");
+    if( RasXSetErrorHandler )
+        PrevXErrorHandler = RasXSetErrorHandler( IgnoreXError );
+}
+
+static void EndXErrorGuard( void )
+{
+    if( RasXSetErrorHandler )
+        RasXSetErrorHandler( PrevXErrorHandler );
+}
+#else
+#define BeginXErrorGuard()  ((void)0)
+#define EndXErrorGuard()    ((void)0)
+#endif
+
+
+static void ReportSoftwareFallback( void )
+{
+    const char *name;
+
+    if( !XErrorsIgnored )
+        return;
+
+    name = SDL_GetRendererName( g_renderer );
+    if( name && !strcmp(name,"software") )
+        fprintf( stderr, "RasMol: this display cannot create an OpenGL "
+                         "context; using software rendering.\n" );
 }
 
 
@@ -732,12 +802,16 @@ int main( int argc, char *argv[] )
 
     OpenDisplay();
 
+    BeginXErrorGuard();
     if( !SDL_CreateWindowAndRenderer( "RasMol", XRange, YRange,
                                       SDL_WINDOW_RESIZABLE,
                                       &g_window, &g_renderer ) )
-    {   fprintf( stderr, "SDL_CreateWindowAndRenderer failed: %s\n", SDL_GetError() );
+    {   EndXErrorGuard();
+        fprintf( stderr, "SDL_CreateWindowAndRenderer failed: %s\n", SDL_GetError() );
         return 1;
     }
+    EndXErrorGuard();
+    ReportSoftwareFallback();
     CreateImage();
 
     InitSubsystems();
