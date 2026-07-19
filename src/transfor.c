@@ -241,6 +241,31 @@
 #include "rmsd.h"
 #include "script.h"
 
+/*
+ * CQRHLERP is called by the substructure-alignment code below but is NOT part
+ * of the public CQRlib 1.0.3.  RasMol 2.7.6 must have been built against a
+ * private/unreleased CQRlib that added it.  This is a reconstruction from its
+ * call sites: a homogeneous linear combination out = wa*a + wb*b of two
+ * quaternions, with double-cover sign correction so rotations in opposite
+ * hemispheres average sensibly.  Every caller re-normalizes the result, so any
+ * overall scale factor is irrelevant.  Aliasing out==a is safe (each output
+ * component depends only on the same-index input component).
+ * TODO: verify against Bernstein's original CQRHLERP if it is ever recovered.
+ */
+static int CQRHLERP( CQRQuaternionHandle out, CQRQuaternionHandle a,
+                     CQRQuaternionHandle b, double wa, double wb )
+{
+    double dot, sgn;
+    if( !out || !a || !b ) return -1;
+    dot = a->w*b->w + a->x*b->x + a->y*b->y + a->z*b->z;
+    sgn = ( dot < 0.0 ) ? -wb : wb;
+    out->w = wa*a->w + sgn*b->w;
+    out->x = wa*a->x + sgn*b->x;
+    out->y = wa*a->y + sgn*b->y;
+    out->z = wa*a->z + sgn*b->z;
+    return 0;
+}
+
 #define CPKMAX  16
 static ShadeRef CPKShade[] = {
      { 0, 0, 200, 200, 200 },       /*  0 Light Grey   */
