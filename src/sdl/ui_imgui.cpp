@@ -15,6 +15,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <float.h>
+#include <ctype.h>
+#include <vector>
+#include <string>
 
 static UiCallbacks   g_cb;
 static SDL_Window   *g_window   = nullptr;
@@ -309,6 +312,90 @@ static void BuildAbout( void )
     }
 }
 
+/* ---- console command line: history (up/down) + Tab completion ---- */
+
+static std::vector<std::string> g_history;
+static int  g_history_pos = -1;   /* -1 = editing a fresh line */
+
+/* Common top-level RasMol commands, for Tab completion. */
+static const char *g_commands[] = {
+    "backbone", "background", "bond", "cartoons", "center", "centre", "clipboard",
+    "colour", "color", "connect", "cpk", "define", "dots", "echo", "exit",
+    "hbonds", "help", "label", "labels", "load", "molecule", "monitor", "pause",
+    "quit", "refresh", "reset", "restrict", "ribbons", "rotate", "save", "script",
+    "select", "set", "show", "slab", "source", "spacefill", "ssbonds", "star",
+    "stereo", "strands", "structure", "trace", "translate", "wireframe", "write",
+    "zap", "zoom"
+};
+
+static bool CiEqualN( const char *a, const char *b, int n )
+{
+    for( int i = 0; i < n; i++ )
+        if( tolower((unsigned char)a[i]) != tolower((unsigned char)b[i]) )
+            return false;
+    return true;
+}
+
+static int ConsoleInputCallback( ImGuiInputTextCallbackData *data )
+{
+    if( data->EventFlag == ImGuiInputTextFlags_CallbackCompletion )
+    {
+        /* Complete the word under the cursor against the command list. */
+        const char *end   = data->Buf + data->CursorPos;
+        const char *start = end;
+        while( start > data->Buf && start[-1] != ' ' && start[-1] != '\t' )
+            start--;
+        int n = (int)( end - start );
+
+        std::vector<const char *> hits;
+        for( const char *c : g_commands )
+            if( (int)strlen(c) >= n && CiEqualN( c, start, n ) )
+                hits.push_back( c );
+
+        if( hits.size() == 1 )
+        {   data->DeleteChars( (int)( start - data->Buf ), n );
+            data->InsertChars( data->CursorPos, hits[0] );
+            data->InsertChars( data->CursorPos, " " );
+        }
+        else if( hits.size() > 1 )
+        {   /* Extend to the longest common prefix. */
+            int len = n;
+            for( ;; )
+            {   char ch = hits[0][len]; bool same = ch != 0;
+                for( size_t i = 1; i < hits.size() && same; i++ )
+                    if( tolower((unsigned char)hits[i][len]) != tolower((unsigned char)ch) )
+                        same = false;
+                if( !same ) break;
+                len++;
+            }
+            if( len > n )
+            {   data->DeleteChars( (int)( start - data->Buf ), n );
+                data->InsertChars( data->CursorPos, hits[0], hits[0] + len );
+            }
+        }
+    }
+    else if( data->EventFlag == ImGuiInputTextFlags_CallbackHistory )
+    {
+        int prev = g_history_pos;
+        if( data->EventKey == ImGuiKey_UpArrow )
+        {   if( g_history_pos == -1 )
+                g_history_pos = (int)g_history.size() - 1;
+            else if( g_history_pos > 0 )
+                g_history_pos--;
+        }
+        else if( data->EventKey == ImGuiKey_DownArrow )
+        {   if( g_history_pos != -1 && ++g_history_pos >= (int)g_history.size() )
+                g_history_pos = -1;
+        }
+        if( prev != g_history_pos )
+        {   const char *s = ( g_history_pos >= 0 ) ? g_history[g_history_pos].c_str() : "";
+            data->DeleteChars( 0, data->BufTextLen );
+            data->InsertChars( 0, s );
+        }
+    }
+    return 0;
+}
+
 static void BuildConsole( void )
 {
     if( !g_show_console )
@@ -346,10 +433,18 @@ static void BuildConsole( void )
         static char input[512] = "";
         ImGui::PushItemWidth( -1 );
         bool reclaim = false;
-        if( ImGui::InputText( "##cmd", input, sizeof(input),
-                              ImGuiInputTextFlags_EnterReturnsTrue ) )
+        ImGuiInputTextFlags iflags = ImGuiInputTextFlags_EnterReturnsTrue |
+                                     ImGuiInputTextFlags_CallbackCompletion |
+                                     ImGuiInputTextFlags_CallbackHistory;
+        if( ImGui::InputText( "##cmd", input, sizeof(input), iflags,
+                              ConsoleInputCallback ) )
         {   if( input[0] )
-                RunCmd( input );
+            {   RunCmd( input );
+                /* record in history (skip immediate duplicates) */
+                if( g_history.empty() || g_history.back() != input )
+                    g_history.push_back( input );
+            }
+            g_history_pos = -1;
             input[0] = '\0';
             reclaim = true;
         }
