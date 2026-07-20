@@ -107,8 +107,15 @@ revision.
 
 ## Open issues / TODO
 
-1. **Windows runtime-untested.** `binaries/windows-x86_64/rasmol.exe` builds
-   (static, PE32+) but nobody has run it on real Windows. User will test.
+1. **Windows 7 pending.** Windows 10 is **validated** (2026-07-20, user's VM:
+   GUI, PDBs and bead models all fine, bead load fast). A colleague is testing
+   Windows 7 bare metal. Static analysis of `rasmol.exe` found no blocker —
+   XP-era subsystem version, no post-Win7 imports, SDL3 supports desktop
+   Windows back to XP — but it imports the UCRT (`api-ms-win-crt-*`), which on
+   Win7 SP1 requires update KB2999226. If that is the failure, the symptom is a
+   missing-DLL dialog for `api-ms-win-crt-runtime-l1-1-0.dll`; the fallback
+   would be relinking against `msvcrt.dll` (the MinGW toolchain ships
+   `libmsvcrt.a`), which is not a flag flip and needs testing.
 2. **Console interactive behaviors need user verification** — auto-scroll,
    Ctrl-D/Ctrl+L, Tab, cross-session history. All compile + render; couldn't be
    driven in headless snapshots. Auto-scroll uses an outer-child +

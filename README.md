@@ -219,8 +219,16 @@ claude/               Developer research notes
   VNC) are validated — the GUI builds and renders identically on both, driven
   from SOMO for PDBs and bead models, and the binaries are statically linked for
   distribution. **Windows** cross-compiles to a self-contained static
-  `rasmol.exe` with MinGW-w64 (provided under `binaries/`) but has **not yet
-  been validated at runtime on real Windows**.
+  `rasmol.exe` with MinGW-w64 (provided under `binaries/`) and is validated on
+  **Windows 10** — GUI, PDB and bead-model loading all behave as on the other
+  platforms. Older Windows is untested; see the UCRT note below.
+- **Windows 7 is untested but has no known blocker.** The exe declares an
+  XP-era subsystem version and imports no post-Win7 APIs, and SDL3 supports
+  desktop Windows back to XP. It does import the **UCRT**
+  (`api-ms-win-crt-*`), which is built into Windows 10 but reaches Windows 7
+  SP1 only via update **KB2999226** — present on most patched Win7 machines.
+  If it is missing, the failure is an explicit missing-DLL dialog naming
+  `api-ms-win-crt-runtime-l1-1-0.dll`.
 - Displays that advertise GLX but cannot create an OpenGL context — notably some
   older VNC servers — are handled by falling back to SDL's software renderer,
   with a note on stderr. RasMol rasterizes on the CPU, so nothing is lost.
