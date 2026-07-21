@@ -117,16 +117,24 @@ revision.
    would be relinking against `msvcrt.dll` (the MinGW toolchain ships
    `libmsvcrt.a`), which is not a flag flip and needs testing.
 
-   **File→Open verification pending on the new build.** Win7 (and macOS)
-   originally hung after picking a file: SDL's native file dialog runs its
-   callback on a worker thread on Windows (`SDL_CreateThread`), and the
-   callback ran the load — RasMol command engine + SDL renderer, neither
-   thread safe — directly, blanking the window. Fixed (commit ebf66dc,
-   binaries 71b7126) by marshalling dialog commands to the main loop via a
-   registered SDL event; verify Open/Save As in the Win10 VM. **Rule for any
-   new dialog callback: never touch the core or renderer in it — call
-   `DeferCommand`.** Same commit fixed a POSIX signal-handler double-free on
-   exit (`ConsoleSignal` now only sets a flag; verified with a SIGTERM test).
+   **File→Open is fixed and validated on Windows 10** (2026-07-21), including
+   paths with spaces. Two bugs were behind the original hang:
+   - *Threading* (commit ebf66dc): SDL's native file dialog runs its callback
+     on a worker thread on Windows (`SDL_CreateThread`; the Cocoa backend uses
+     the main run loop, so macOS was fine). The callback ran the load — RasMol
+     command engine + SDL renderer, neither thread safe — directly, blanking
+     the window. Fixed by marshalling dialog commands to the main loop via a
+     registered SDL event. **Rule for any new dialog callback: never touch the
+     core or renderer in it — call `DeferCommand`.** The same commit fixed a
+     POSIX signal-handler double-free on exit (`ConsoleSignal` now only sets a
+     flag; verified with a SIGTERM test).
+   - *Spaces in paths* (commit 19dd1f9): once the load ran, `ProcessFileName`
+     (the non-IBMPC/APPLEMAC/VMS variant used by modern macOS/Linux/Windows)
+     truncated the filename at the first space, so `C:\Program Files\...`
+     became `C:\Program`. Now keeps interior spaces and trims only trailing
+     ones, like the classic IBMPC/APPLEMAC variants; `IsSecure` still strips
+     the shell metacharacters that matter for the gzip `popen` path. This bug
+     also affected macOS/Linux paths with spaces.
 2. **Console interactive behaviors need user verification** — auto-scroll,
    Ctrl-D/Ctrl+L, Tab, cross-session history. All compile + render; couldn't be
    driven in headless snapshots. Auto-scroll uses an outer-child +
