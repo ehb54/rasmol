@@ -443,11 +443,18 @@ char *ProcessFileName( char *name )
             *ptr++ = *temp++;
     } else ptr = DataFileName;
     
-    /* Strip dubious characters! */
-    while( *name && (*name!=' ') )
+    /* Strip dubious characters!  Interior spaces are kept, so paths like
+       "C:\Program Files\..." or "/Users/me/My Data/x.pdb" work; stopping at
+       the first space truncated them.  IsSecure still removes the shell
+       metacharacters that could break out of the single-quoted name in the
+       gzip popen() path, and only trailing spaces are trimmed (matching the
+       classic IBMPC/APPLEMAC variants above). */
+    while( *name )
         if( IsSecure(*name) )
         {   *ptr++ = *name++;
         } else name++;
+    while( (ptr!=DataFileName) && (ptr[-1]==' ') )
+        ptr--;
     *ptr = '\0';
     return ptr;
 }
