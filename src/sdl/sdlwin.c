@@ -79,6 +79,39 @@ static void TermRestore( void );   /* forward decl (used by CloseDisplay) */
 static int g_quit = False;         /* set by a UI/command exit request */
 static int g_ui_ready = False;     /* ImGui UI initialized */
 
+#ifndef _WIN32
+/* Set from the SIGINT/SIGTERM handler.  The handler must stay async-signal
+   safe, so it only flips this flag; the main loop sees it and shuts down
+   through the normal path (a signal handler must not call CloseDisplay, which
+   frees SDL/ImGui state - doing so raced the main thread and double-freed). */
+static volatile sig_atomic_t g_signal_quit = 0;
+#endif
+
+/* SDL's native file dialogs invoke their callback on a worker thread on some
+   platforms (Windows spawns one via SDL_CreateThread; macOS calls back on the
+   main run loop).  RasMol's command engine and the SDL renderer are not thread
+   safe, so a dialog callback must not touch them directly - on Windows that
+   blanks the window and hangs.  Instead the callback hands the command to the
+   main loop through a registered SDL event (SDL_PushEvent is thread safe). */
+static Uint32 g_cmd_event = 0;
+
+static void RunCommandString( const char *cmd );   /* defined below */
+
+static void DeferCommand( const char *cmd )
+{
+    if( g_cmd_event )
+    {   SDL_Event ev;
+        SDL_zero( ev );
+        ev.type = g_cmd_event;
+        ev.user.data1 = SDL_strdup( cmd );   /* freed when the main loop runs it */
+        SDL_PushEvent( &ev );
+    } else
+    {   /* No event type registered yet (should not happen once the window is
+           up); fall back to running inline. */
+        RunCommandString( cmd );
+    }
+}
+
 /* ---- console output capture (mirrors stdout into the in-window console) ---- */
 #define CONSOLE_CAP 65536
 static char g_console_buf[CONSOLE_CAP];
@@ -150,7 +183,7 @@ static void OpenFileCB( const char *path )
     char cmd[1200];
     if( !path ) return;
     snprintf( cmd, sizeof(cmd), "load \"%s\"", path );
-    RunCommandString( cmd );
+    DeferCommand( cmd );   /* may run on a dialog worker thread - see g_cmd_event */
 }
 
 static void QuitCB( void ) { g_quit = True; }
@@ -181,7 +214,7 @@ static void SaveDialogCB( void *userdata, const char * const *filelist, int filt
     {   char cmd[1200];
         snprintf( cmd, sizeof(cmd), "set write true\nwrite %s \"%s\"",
                   g_save_format, filelist[0] );
-        RunCommandString( cmd );
+        DeferCommand( cmd );   /* dialog callback thread - see g_cmd_event */
     }
 }
 
@@ -608,9 +641,7 @@ static void ServiceConsole( int *quit, int *redraw )
 static void ConsoleSignal( int sig )
 {
     (void)sig;
-    TermRestore();
-    CloseDisplay();
-    _exit( 0 );
+    g_signal_quit = 1;   /* async-signal-safe: main loop does the teardown */
 }
 #endif /* !_WIN32 */
 
@@ -814,6 +845,9 @@ int main( int argc, char *argv[] )
     ReportSoftwareFallback();
     CreateImage();
 
+    /* Event used to marshal file-dialog results back to the main thread. */
+    g_cmd_event = SDL_RegisterEvents( 1 );
+
     InitSubsystems();
 
     /* Clicking an atom identifies it in the console, as in classic RasMol. */
@@ -893,6 +927,17 @@ int main( int argc, char *argv[] )
         do {
             Ui_ProcessEvent( &ev );
 
+            /* A command deferred from a file-dialog callback (possibly on a
+               worker thread) - run it here on the main thread. */
+            if( g_cmd_event && ev.type == g_cmd_event )
+            {   char *cmd = (char *)ev.user.data1;
+                if( cmd )
+                {   RunCommandString( cmd );
+                    SDL_free( cmd );
+                }
+                continue;
+            }
+
             /* If ImGui is using the pointer (menu/console), don't let the
                mouse rotate or zoom the molecule. */
             int ui_mouse = Ui_WantMouse();
@@ -965,6 +1010,8 @@ int main( int argc, char *argv[] )
             if( quit )
                 running = False;
         }
+        if( g_signal_quit )   /* Ctrl-C / SIGTERM: leave the loop, clean up once */
+            running = False;
 #endif
 
         PresentFrame();
