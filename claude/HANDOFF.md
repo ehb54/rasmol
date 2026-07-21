@@ -116,6 +116,17 @@ revision.
    missing-DLL dialog for `api-ms-win-crt-runtime-l1-1-0.dll`; the fallback
    would be relinking against `msvcrt.dll` (the MinGW toolchain ships
    `libmsvcrt.a`), which is not a flag flip and needs testing.
+
+   **File→Open verification pending on the new build.** Win7 (and macOS)
+   originally hung after picking a file: SDL's native file dialog runs its
+   callback on a worker thread on Windows (`SDL_CreateThread`), and the
+   callback ran the load — RasMol command engine + SDL renderer, neither
+   thread safe — directly, blanking the window. Fixed (commit ebf66dc,
+   binaries 71b7126) by marshalling dialog commands to the main loop via a
+   registered SDL event; verify Open/Save As in the Win10 VM. **Rule for any
+   new dialog callback: never touch the core or renderer in it — call
+   `DeferCommand`.** Same commit fixed a POSIX signal-handler double-free on
+   exit (`ConsoleSignal` now only sets a flag; verified with a SIGTERM test).
 2. **Console interactive behaviors need user verification** — auto-scroll,
    Ctrl-D/Ctrl+L, Tab, cross-session history. All compile + render; couldn't be
    driven in headless snapshots. Auto-scroll uses an outer-child +
