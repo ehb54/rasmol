@@ -29,8 +29,10 @@ See the repository [README](../README.md) for full usage.
 
 ### macOS note
 
-Because these binaries are not code-signed, macOS Gatekeeper may block the first
-launch if you obtained them via a downloaded archive. Either right-click →
+`rasmol` is ad-hoc signed (both the arm64 and x86_64 slices), so it runs on
+Apple Silicon and Intel without any extra step. An ad-hoc signature is not a
+Developer ID signature, though, so macOS Gatekeeper may still block the first
+launch if you obtained the binary via a downloaded archive. Either right-click →
 **Open** once, or clear the quarantine flag:
 
 ```sh
