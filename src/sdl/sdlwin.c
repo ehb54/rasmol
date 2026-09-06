@@ -804,6 +804,14 @@ int main( int argc, char *argv[] )
         {   scriptname = argv[++i];
         } else if( !strcmp(argv[i],"-pdb") && i+1<argc )
         {   FileFormat = FormatPDB; filename = argv[++i];
+        } else if( !strcmp(argv[i],"-insecure") )
+        {   /* Same meaning as in the legacy X11 front end: permit the file
+             * writing commands ("write", "save", ...) from inside a script.
+             * Without it a scripted "write ppm ..." is refused, which leaves
+             * no way to check a -script run without a human at the window. */
+            AllowWrite = True;
+        } else if( !strcmp(argv[i],"-secure") )
+        {   AllowWrite = False;
         } else if( argv[i][0] != '-' )
         {   filename = argv[i];
         }
