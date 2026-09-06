@@ -2186,7 +2186,17 @@ static Expr *ParseRange( int neg )
     
     ch = *TokenPtr;
     if( isalnum(ch) )
-    {   ch = ToUpper(ch);
+    {   char chbuf[2];
+
+        /* PropChain evaluates to Chain->chrefno, not the raw chain letter, so
+         * the ident must go through FindChNo() exactly as ParsePrimitiveExpr()
+         * does for the "*<chain>" form.  Comparing against the character itself
+         * (as this did before 2.7.6 introduced chrefno) never matches, which
+         * silently broke every "<resno>:<chain>" selection.  FindChNo() is
+         * case sensitive, so the ident is no longer upper-cased here either.
+         */
+        chbuf[0] = ch;
+        chbuf[1] = '\0';
         TokenPtr++;
         
         tmp2 = AllocateNode();
@@ -2196,7 +2206,7 @@ static Expr *ParseRange( int neg )
         tmp1 = AllocateNode();
         tmp1->type = OpEqual | OpLftProp | OpRgtVal;
         tmp1->lft.val = PropChain;               
-        tmp1->rgt.val = ch;
+        tmp1->rgt.val = FindChNo(chbuf);
         
         tmp2->lft.ptr = tmp1;
         tmp1 = tmp2;
