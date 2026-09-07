@@ -6,9 +6,9 @@ program looks for it in its own directory).
 
 | Folder | Architecture | Runs on |
 |--------|--------------|---------|
-| `linux-x86_64/`    | x86-64            | Any glibc ≥ 2.17 Linux — CentOS/RHEL 7, Ubuntu 14.04, and everything newer (built on Ubuntu 16.04) |
+| `linux-x86_64/`    | x86-64            | Any glibc ≥ 2.17 Linux — CentOS/RHEL 7, Ubuntu 14.04, and everything newer |
 | `macos-universal/` | Intel + Apple Silicon | macOS 11 (Big Sur) and later |
-| `windows-x86_64/`  | x86-64            | Windows 10 and later — **built (MinGW), not yet validated on real Windows** |
+| `windows-x86_64/`  | x86-64            | Windows 10 and later |
 
 These are statically linked (SDL3, Dear ImGui, and the C++ runtime are baked
 in). The Linux binary depends only on core glibc and loads X11/Wayland/OpenGL
@@ -43,9 +43,8 @@ xattr -dr com.apple.quarantine ./rasmol
 
 `rasmol.exe` is a self-contained static build (cross-compiled with MinGW-w64);
 it needs only the Windows system DLLs and the Universal CRT present on Windows
-10+. It has **not yet been validated on real Windows** — please report whether
-it runs. A console window opens alongside the graphics window for command
-output. Run it from a folder that also contains `rasmol.hlp`:
+10+. A console window opens alongside the graphics window for command output.
+Run it from a folder that also contains `rasmol.hlp`:
 
 ```
 rasmol.exe structure.pdb
@@ -53,7 +52,12 @@ rasmol.exe structure.pdb
 
 ## Rebuilding
 
-These are produced from the source in this repository — see the top-level
-[README](../README.md) for build instructions. For maximum Linux compatibility,
-build on the oldest glibc you want to support (a binary built against old glibc
-runs on that and every newer version).
+These are produced from the source in this repository by the scripts in
+[`scripts/`](../scripts) — see [scripts/README.md](../scripts/README.md) for how
+each platform is built and verified.
+
+The Linux binary is built inside a pinned glibc 2.17 container so that its
+floor is a property of the repository rather than of whichever machine cut the
+release. Keeping that floor low is deliberate: scientific installations often
+run old distributions. Raising it would silently strand them, so treat the base
+image in `scripts/Dockerfile.linux` as a compatibility decision.
