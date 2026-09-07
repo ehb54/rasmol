@@ -1,0 +1,38 @@
+# Build environment for the released Linux x86_64 binary.
+#
+# The base image fixes the glibc floor of everything built here. A binary
+# inherits the floor of the glibc it was linked against, and it will not start
+# on a system older than that -- so this line, not the host distribution, is
+# what decides which Linux systems the shipped `rasmol` runs on.
+#
+# manylinux2014 is CentOS 7: glibc 2.17, devtoolset-10 for the C++17 the
+# CMakeLists requires, and yum repositories already redirected to the CentOS
+# vault (the stock CentOS 7 mirrors are long gone).
+#
+# DO NOT bump this base image casually. Moving to, say, manylinux_2_28 raises
+# the floor to glibc 2.28 and silently drops every older system. Scientific
+# installations routinely run old distributions, and this project deliberately
+# keeps the 2.17 floor. Changing it is a compatibility decision, not an
+# upgrade -- if you do change it, update binaries/README.md to match.
+FROM quay.io/pypa/manylinux2014_x86_64
+
+# SDL3 needs the X11 (and related) development headers to build its X11 video
+# backend. Without them the GUI would have no way to open a window on Linux --
+# the build still succeeds, which is why this is easy to get wrong.
+RUN yum -y install \
+        libX11-devel libXext-devel libXrandr-devel libXcursor-devel \
+        libXi-devel libXfixes-devel libXScrnSaver-devel mesa-libGL-devel \
+        alsa-lib-devel pulseaudio-libs-devel \
+    && yum clean all
+
+# devtoolset-10 is not on PATH by default; the entrypoint below enables it.
+ENV BASH_ENV=/opt/rh/devtoolset-10/enable \
+    CC=gcc \
+    CXX=g++
+
+SHELL ["/bin/bash", "-c"]
+
+# Entrypoint is bash so callers can pass `-c '<command>'`; BASH_ENV above puts
+# devtoolset on PATH for that non-interactive shell.
+ENTRYPOINT ["/bin/bash"]
+WORKDIR /src
