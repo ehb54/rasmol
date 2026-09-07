@@ -646,6 +646,38 @@ static void ConsoleSignal( int sig )
 #endif /* !_WIN32 */
 
 
+/* Batch command reader for -nodisplay.  stdin is a script or a pipe, not
+   a terminal, so this is a plain blocking read: no raw mode, no VT100
+   decoding, and no event loop to multiplex against.  Returns at end of
+   input or when a command asks to quit.
+
+   The interactive reader above is compiled out on Windows, which had no
+   substitute -- so "rasmol -nodisplay < script" there consumed nothing and
+   sat in the event loop forever.  This is what it now runs instead. */
+static void RunBatchConsole( void )
+{
+    int ch;
+
+    ResetCommandLine( 0 );
+    while( ( ch = getchar() ) != EOF )
+    {   if( ch == 0x04 )       /* Ctrl-D (EOT) */
+            break;
+        if( ch == '\r' )       /* tolerate CRLF scripts */
+            continue;
+
+        if( ProcessCharacter( ch ) )
+        {   if( ExecuteCommand() )
+                return;
+            /* Render after each command, as classic RasMol does, so that a
+               subsequent "write" sees the finished frame. */
+            RefreshScreen();
+            if( !CommandActive )
+                ResetCommandLine( 0 );
+        }
+    }
+}
+
+
 /* ------------------------------------------------------------------ */
 /* Frontend driver                                                    */
 /* ------------------------------------------------------------------ */
@@ -787,6 +819,7 @@ int main( int argc, char *argv[] )
     const char *filename = NULL;
     const char *snapshot = NULL;
     const char *scriptname = NULL;
+    int nodisplay = False;
     int i, running, done;
 
     setvbuf( stdout, NULL, _IONBF, 0 );   /* prompt/echo appears immediately */
@@ -812,9 +845,24 @@ int main( int argc, char *argv[] )
             AllowWrite = True;
         } else if( !strcmp(argv[i],"-secure") )
         {   AllowWrite = False;
+        } else if( !strcmp(argv[i],"-nodisplay") )
+        {   nodisplay = True;
         } else if( argv[i][0] != '-' )
         {   filename = argv[i];
         }
+    }
+
+    /* -nodisplay: no visible window and no UI, but the renderer is still
+       created so the frame buffer stays valid for "write"/-snapshot. */
+    if( nodisplay )
+    {   Interactive = False;
+
+        /* A batch run must not need a display server at all, so ask SDL for
+           its dummy video backend -- otherwise -nodisplay over ssh on a
+           headless box dies in SDL_Init with "No available video device".
+           An explicit SDL_VIDEODRIVER in the environment still wins. */
+        if( !getenv( "SDL_VIDEODRIVER" ) )
+            SDL_SetHint( SDL_HINT_VIDEO_DRIVER, "dummy" );
     }
 
     if( !SDL_Init( SDL_INIT_VIDEO ) )
@@ -843,7 +891,8 @@ int main( int argc, char *argv[] )
 
     BeginXErrorGuard();
     if( !SDL_CreateWindowAndRenderer( "RasMol", XRange, YRange,
-                                      SDL_WINDOW_RESIZABLE,
+                                      nodisplay ? SDL_WINDOW_HIDDEN
+                                                : SDL_WINDOW_RESIZABLE,
                                       &g_window, &g_renderer ) )
     {   EndXErrorGuard();
         fprintf( stderr, "SDL_CreateWindowAndRenderer failed: %s\n", SDL_GetError() );
@@ -861,6 +910,7 @@ int main( int argc, char *argv[] )
     /* Clicking an atom identifies it in the console, as in classic RasMol. */
     SetPickMode( PickIdent );
 
+    if( !nodisplay )
     {   UiCallbacks cb;
         cb.run_command  = RunCommandString;
         cb.console_text = ConsoleTextCB;
@@ -912,6 +962,16 @@ int main( int argc, char *argv[] )
 
     ReDrawFlag |= RFInitial | RFColour;
     RefreshScreen();
+
+    /* -nodisplay is a batch run: the file and any -script have been
+       processed, so read whatever else is on stdin and exit.  Never enter
+       the event loop -- with no window to close and (on Windows) no console
+       reader, it would never be left. */
+    if( nodisplay )
+    {   RunBatchConsole();
+        CloseDisplay();
+        return 0;
+    }
 
 #ifndef _WIN32
     /* Classic RasMol interactive command line in the controlling terminal. */
