@@ -37,6 +37,12 @@ Based on RasMol 2.7.6 by Roger Sayle and Herbert J. Bernstein. See
   in addition to the in-window console.
 - **SOMO bead-model support** — `rasmol -script model.spt` renders the bead
   models written by UltraScan SOMO, alongside ordinary PDB input.
+- **Triangle meshes** — `load mesh <file>` shows a molecular surface mesh with
+  the molecule: BEST input meshes (rcoal, sesmesh), msroll `.c3p`, MSMS
+  `.vert`/`.face` and ZENO `.bod`. A mesh is a map, so `map surface`,
+  `map mesh`, `map dots`, `map colour` (including `atom`), `map show` and
+  `map zap` work on it, and `slab` cuts it open. A closed mesh of 1.3 million
+  triangles redraws in about 45 ms on one core.
 - **CIF / mmCIF input** via RasMol's own built-in parser (no external library).
 - **Help → About** reporting the fork version and exact build revision.
 - **Large bead models load ~15× faster.** RasMol rebuilt every bond's selection
@@ -208,6 +214,7 @@ third_party/          Vendored libraries (self-contained build)
   imgui               Dear ImGui + SDL3 backends (MIT)
 data/                 Sample structures
 doc/                  RasMol user documentation (help file, manual)
+tests/mesh/           Headless tests for load mesh (run_tests.sh path/to/rasmol)
 claude/               Developer research notes
 ```
 
