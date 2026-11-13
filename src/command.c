@@ -143,6 +143,7 @@
 #include "wbrotate.h"
 #include "langsel.h"
 #include "maps.h"
+#include "mesh.h"
 
 #include <math.h>
 #include <cqrlib.h>
@@ -2636,6 +2637,10 @@ static void ExecuteLoadCommand( void )
     } else if( CurToken == DotsTok )
     {   format = FormatDots;
         FetchToken();
+    } else if( CurToken == WireframeTok && !strcmp(TokenIdent,"MESH") )
+    {   /* "mesh" is a synonym of "wireframe" elsewhere */
+        format = FormatMesh;
+        FetchToken();
     } else if (CurToken == MapTok) 
     {   format = FormatMap;
         if (!Database){
@@ -2676,7 +2681,7 @@ static void ExecuteLoadCommand( void )
 		/* don't color the molecule unless it's actually loaded! */
 		if (checkfile == True)
 			DefaultRepresentation();
-    } else /* format == FormatDots  || format == FormatMap */
+    } else /* format == FormatDots, FormatMap or FormatMesh */
     {   if( !Database )
     {   CommandError(MsgStrs[ErrBadMolDB]);
         return;
@@ -2686,7 +2691,10 @@ static void ExecuteLoadCommand( void )
         {      ProcessFileName(TokenIdent);
         } else ProcessFileName(TokenStart);
         
-        if( !(fp=fopen(DataFileName,"rb")) )
+        if( format == FormatMesh )
+        {   /* opens the file itself: MSMS meshes are two files */
+            LoadMeshMap(DataFileName,info);
+        } else if( !(fp=fopen(DataFileName,"rb")) )
         {   CommandError( (char*)NULL );
             WriteString(MsgStrs[StrDFile]);
             WriteString(DataFileName);
@@ -5078,6 +5086,15 @@ static void ApplyMapFlag( void ) {
         for (j=0; j < MapInfoPtr->size; j++) {
             vector_get_elementptr((GenericVec __far *)MapInfoPtr,(void __far * __far *)&mapinfo,j );
             if (mapinfo->flag&MapSelectFlag) {
+                if (mapinfo->flag&MapMeshFileFlag) {
+                    /* A mesh read from a file has no grid to contour again:
+                       keep its triangles and change only how it is drawn. */
+                    mapinfo->flag &= ~(MapPointFlag|MapMeshFlag|MapSurfFlag);
+                    mapinfo->flag |= mapflag&(MapPointFlag|MapMeshFlag|MapSurfFlag);
+                    mapinfo->MapMeshRad = MapMeshRad;
+                    mapinfo->MapPointRad = MapPointRad;
+                    continue;
+                }
                 mapinfo->flag |= mapflag;
                 DeleteMap(j,True);
                 if (mapinfo->MapPtr) {
@@ -5617,7 +5634,18 @@ void ApplyMapShow( void ) {
     if (MapInfoPtr)  {
         for (j=0; j < MapInfoPtr->size; j++) {
             vector_get_elementptr((GenericVec __far *)MapInfoPtr,(void __far * __far *)&mapinfo,j );
-            if (mapinfo->flag&MapSelectFlag) {
+            if ((mapinfo->flag&MapSelectFlag) && (mapinfo->flag&MapMeshFileFlag)) {
+                sprintf(buffer,"map %d: %s\n",j+1,
+                        mapinfo->flag&MapSurfFlag?"surface":(mapinfo->flag&MapMeshFlag?"mesh":(
+                            mapinfo->flag&MapPointFlag?"dots":"unknown")));
+                WriteString(buffer);
+                if (mapinfo->MapLabel) {
+                    WriteString("label: ");
+                    WriteString(mapinfo->MapLabel);
+                    WriteString("\n");
+                }
+                ShowMeshMap(mapinfo);
+            } else if (mapinfo->flag&MapSelectFlag) {
                 sprintf(buffer,"map %d: %s %s %lg spacing %#lg spread %#lg %s %s\n",j+1,
                         mapinfo->flag&MapSurfFlag?"surface":(mapinfo->flag&MapMeshFlag?"mesh":(
                                                                                                mapinfo->flag&MapPointFlag?"dots":"unknown") ),

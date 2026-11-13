@@ -227,6 +227,7 @@
 #include "vector.h"
 #include "wbrotate.h"
 #include "maps.h"
+#include "mesh.h"
 
 /* Avoid PowerPC Errors! */
 #ifdef INFINITY
@@ -2479,6 +2480,7 @@ static void RenderFrame( void )
 	      DisplayMapPoints();
 	      DisplayMapBonds();
 	      DisplayMapTangles();
+	      DisplayMeshMaps();
 	    }
 	    if( LabelList ) DisplayLabels();
             if( MonitList ) DisplayMonitors();

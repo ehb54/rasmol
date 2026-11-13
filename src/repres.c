@@ -1266,7 +1266,7 @@ void DisplayMapPoints( void )
       	MapPointsPtr = mapinfo.MapPointsPtr;
       	irad = (int)rint(Scale*(Real)(mapinfo.MapMeshRad));
 
-        if (MapPointsPtr && (mapinfo.flag&MapPointFlag) )
+        if (MapPointsPtr && (mapinfo.flag&MapPointFlag) && !(mapinfo.flag&MapMeshFileFlag) )
         for (i=0; i<MapPointsPtr->size; i++) {
         	x = (MapPointsPtr->array[i]).xpos;
         	y = (MapPointsPtr->array[i]).ypos;
@@ -1314,7 +1314,7 @@ void DisplayMapBonds( void )
       	MapBondsPtr = mapinfo.MapBondsPtr;
       	irad = (int)rint(Scale*(Real)(mapinfo.MapMeshRad));
       	
-      	if (MapBondsPtr && (mapinfo.flag&MapMeshFlag))
+      	if (MapBondsPtr && (mapinfo.flag&MapMeshFlag) && !(mapinfo.flag&MapMeshFileFlag))
       	for (i=0; i<MapBondsPtr->size; i++) {
       	  src = (MapBondsPtr->array[i]).src;
       	  dst = (MapBondsPtr->array[i]).dst;
@@ -1375,7 +1375,7 @@ void DisplayMapTangles( void ) {
       	MapPointsPtr = mapinfo.MapPointsPtr;
       	MapTanglePtr = mapinfo.MapTanglePtr;
       	
-      	if (MapTanglePtr && (mapinfo.flag&MapSurfFlag))
+      	if (MapTanglePtr && (mapinfo.flag&MapSurfFlag) && !(mapinfo.flag&MapMeshFileFlag))
       	for (i=0; i<MapTanglePtr->size; i++) {
       	  src = (MapTanglePtr->array[i]).points[0];
       	  dst = (MapTanglePtr->array[i]).points[1];
