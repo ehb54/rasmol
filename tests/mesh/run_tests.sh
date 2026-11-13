@@ -43,13 +43,14 @@ mol() {
 }
 
 # The bounding box of the pixels that are not background, "x0 y0 x1 y1".
+# (On Windows the PPM header ends in \r\n.)
 bbox() {
     perl -e '
         open( my $fh, "<", $ARGV[0] ) or die "$ARGV[0]: $!\n";
         binmode $fh;
         local $/;
         my $d = <$fh>;
-        $d =~ s/\AP6\s+(\d+)\s+(\d+)\s+(\d+)\s//s or die "$ARGV[0]: not a PPM\n";
+        $d =~ s/\AP6\s+(\d+)\s+(\d+)\s+(\d+)(?:\r\n|\s)//s or die "$ARGV[0]: not a PPM\n";
         my ( $w, $h ) = ( $1, $2 );
         my ( $x0, $y0, $x1, $y1 ) = ( $w, $h, -1, -1 );
         for my $y ( 0 .. $h - 1 ) {
@@ -60,6 +61,7 @@ bbox() {
             }
         }
         die "$ARGV[0]: empty\n" if $x1 < 0;
+        binmode STDOUT;
         print "$x0 $y0 $x1 $y1\n";
     ' "$1"
 }

@@ -15,7 +15,8 @@
 #   bad.best          a BEST file that ends early
 #
 # and expected.txt: the polyhedral area and volume, and the number of edges on
-# only one triangle of open.best.
+# only one triangle of open.best.  Every file has \n line ends, also under a
+# Windows perl, so the inputs are the same on every platform.
 #
 # The centre is not at the origin, and differs in x, y and z, so that a
 # mistake in placing the mesh relative to the molecule shows.
@@ -92,7 +93,7 @@ for my $tri (@f) {
     }
 }
 
-sub out { my ($name) = @_; open( my $fh, '>', $name ) or die "$name: $!\n"; return $fh; }
+sub out { my ($name) = @_; open( my $fh, '>', $name ) or die "$name: $!\n"; binmode $fh; return $fh; }
 sub xyz { my ($i) = @_; return join( ' ', map { sprintf( "%.8f", $_ ) } @{ $x[$i] } ); }
 
 sub best {
