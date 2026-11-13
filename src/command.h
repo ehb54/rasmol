@@ -190,6 +190,7 @@
 
 #define FormatDots      20
 #define FormatMap       21
+#define FormatMesh      22
 
 
 #define IPC_Ok      0

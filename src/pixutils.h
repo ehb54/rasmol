@@ -254,6 +254,7 @@ void ClipDashCylinder( int, int, int, int, int, int, int, int, int, char, int );
 void ClipCylinder( int, int, int, int, int, int, int, int, int, char, int );
 void ClipDashLine( int, int, int, int, int, int, int, int, char );
 void ClipDeepPoint( int, int, int, int );
+void ClipPoint( int, int, int, int );
 void ClipLine( int, int, int, int, int, int, int,  char );
 void ClipPolygon( Poly * );
 void ClipSphere( int, int, int, int, int );

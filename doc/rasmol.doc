@@ -3565,13 +3565,16 @@ AB
 
 ASLoad
 NRSyntax:  load {<format>} <filename>
+NR         load mesh <filename>
 NR
 HR<pre>
 HRSyntax:  load {&lt;format&gt;} &lt;filename&gt;
+HR         load mesh &lt;filename&gt;
 HR</pre><p>
 RR\tx1200
 RR{\f2\b Syntax:\tab
 RRload \{<format>\} <filename>\line\tab
+RRload mesh <filename>
 RR}\pard\par
 
 ATLoad a molecule coordinate file into RasMol. Valid molecule file
@@ -3640,10 +3643,55 @@ HTcommand terminates execution of the current script and returns
 HTcontrol to the command line (or the calling script). This means 
 HTany lines following
 HCexit
-HTare never interpreted by RasMol. These may be used to store 
-HTatomic coordinates in PDB, CIF or mmCIF file format. 
-HTOne possible use is a standard RasMol script prefix that may be 
+HTare never interpreted by RasMol. These may be used to store
+HTatomic coordinates in PDB, CIF or mmCIF file format.
+HTOne possible use is a standard RasMol script prefix that may be
 HTconcatenated with an appropriate PDB file on-the-fly.
+AP
+ATThe
+ACload mesh
+ATcommand reads a triangulated surface, such as the meshes made for
+ATboundary-element (BEST) or ZENO hydrodynamics, and shows it with the
+ATcurrent molecule as a new map.  A molecule must be loaded first.
+ATThe format is recognised from the file name or its contents:
+ATBEST triangle files (a first line giving the number of triangles,
+ATthe area and the volume, then the nine coordinates of each triangle,
+ATas written by rcoal and sesmesh); msroll
+AC.c3p
+ATfiles, with the area and volume from the
+AC.c3v
+ATfile beside them; MSMS
+AC.vert
+ATand
+AC.face
+ATfiles; and ZENO
+AC.bod
+ATfiles, of which only the TRIANGLE lines are read.  Coordinates are
+ATin Angstroms (or the units a .bod file states) in the frame of the
+ATmolecule's coordinate file.
+AP
+ATThe mesh becomes the only selected map, so the map commands that
+ATchange how a map is drawn apply to it:
+ACmap surface,
+ACmap mesh
+ATand
+ACmap dots
+ATchoose the representation (with a radius, as in
+ACmap mesh 0.1,
+ATthe edges are drawn as cylinders, or the vertices as spheres),
+ACmap colour
+ATsets its colour,
+ACmap colour atom
+ATcolours it by the nearest atom,
+ACmap show
+ATreports its triangles, whether it is closed, its area and the
+ATvolume it encloses, and
+ACmap zap
+ATdeletes it.  Commands that contour a map again, such as
+ACmap level,
+AThave no effect on a mesh.  The
+ACslab
+ATcommand cuts a mesh open to show the molecule inside it.
 AB
 
 ASMap
@@ -3665,7 +3713,9 @@ ATmemory intensive and may not work on machines with
 ATlimited memory.  Each molecule may have as many maps
 ATas available memory permits.  Maps may be read from
 ATfiles or generated from Gaussian density distributions
-ATaround atoms.
+ATaround atoms.  A triangulated surface read with
+ACload mesh
+ATis also shown as a map.
 AP
 The map selector is a map number (m) or a range of map numbers
 (m-n) and an optional map label as a quotes string.  The keywords

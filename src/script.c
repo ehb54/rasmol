@@ -201,6 +201,7 @@
 #include "wbrotate.h"
 #include "tokens.h"
 #include "maps.h"
+#include "mesh.h"
 
 #ifdef INVERT
 #define InvertY(y) (y)
@@ -1388,7 +1389,9 @@ static void WriteScriptMaps()
     if (MapInfoPtr) {
       for (j=0; j < MapInfoPtr->size; j++) {
         vector_get_elementptr((GenericVec __far *)MapInfoPtr,(void __far * __far *)&mapinfo,j );
-        if (mapinfo->MapPtr) {
+        if (mapinfo->flag&MapMeshFileFlag) {
+          WriteScriptMeshMap(OutFile,mapinfo);
+        } else if (mapinfo->MapPtr) {
           if (!MapPointRad)  {
             if (mapinfo->flag&MapPointFlag)fprintf(OutFile,"map new dots\n");          	
           } else  {

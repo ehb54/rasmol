@@ -280,6 +280,8 @@ typedef struct {
 #define MapScaleFlag    0x1000   /* Map scaled to atomic no. Z      */
 #define MapLRSurfFlag   0x2000   /* Map with Lee-Richards approx    */  
 #define MapSASurfFlag   0x4000   /* Map with SAS approx             */  
+#define MapMeshFileFlag   0x8000 /* Mesh read from a file: no grid  */
+#define MapMeshClosedFlag 0x10000 /* that mesh is closed            */
 #define MAP_ORTHOGONAL  0x000    /* Orthogonal map coordinates      */
 #define MAP_FRACTIONAL  0x001    /* Fractional map coordinates      */
 
@@ -303,6 +305,14 @@ typedef struct {
         MapStruct   __far *MapMaskPtr;  /* Map to be used as a mask  */
         MapAtmSelVec __far
                           *MapMaskGenSel;  /* map mask generation selection   */
+        /* Set only for a mesh read from a file (MapMeshFileFlag) */
+        Real              MeshArea;      /* area of the triangles, A^2       */
+        Real              MeshVolume;    /* volume they enclose, A^3         */
+        Real              MeshFileArea;  /* area stated in the file, or -1   */
+        Real              MeshFileVolume;/* volume stated in the file        */
+        Long              MeshBoundary;  /* edges on only one triangle       */
+        Long              MeshNonManifold;/* edges on more than two          */
+        int               MeshFormat;    /* MESH_BEST ... (meshio.h)         */
 } MapInfo;
 
 

@@ -88,6 +88,8 @@ set(RASMOL_CORE_SOURCES
     src/wbrotate.c
     src/langsel_unix.c
     src/maps.c
+    src/mesh.c
+    src/meshio.c
     src/cif_fract.c
     src/CVector_3D.c
     src/rmsd.c)
